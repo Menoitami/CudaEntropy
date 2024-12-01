@@ -1,8 +1,0 @@
-[
-{
-  "directory": "/home/artger/CudaEntropy/build",
-  "command": "/usr/bin/nvcc -forward-unknown-to-host-compiler   -g -std=c++17 \"--generate-code=arch=compute_52,code=[compute_52,sm_52]\" -x cu -c /home/artger/CudaEntropy/main.cu -o CMakeFiles/CudaEntropy.dir/main.cu.o",
-  "file": "/home/artger/CudaEntropy/main.cu",
-  "output": "CMakeFiles/CudaEntropy.dir/main.cu.o"
-}
-]
