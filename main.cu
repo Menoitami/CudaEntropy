@@ -70,9 +70,11 @@ __device__  double calculateEntropy(double* bins, int binSize, const int sum) {
     return entropy;
 }
 
-__device__ __host__ double* CalculateHistogram(
+
+
+__device__ __host__ void CalculateHistogram(
     const double& totalTime, const double& stepSize, double* X, const double* a, int coord,
-    double binStart, double binEnd, double binStep, int& sum) {
+    double binStart, double binEnd, double binStep, int& sum, double* bins) {
 
 
     int iterations = static_cast<int>(totalTime / stepSize);
@@ -80,7 +82,6 @@ __device__ __host__ double* CalculateHistogram(
     bool lastBigger = false;
 
     int binSize = static_cast<int>(ceil((binEnd - binStart) / binStep));
-    double* bins = new double[binSize];
 
     for (int i = 0; i < binSize; ++i) {
         bins[i] = 0.0;
@@ -102,8 +103,6 @@ __device__ __host__ double* CalculateHistogram(
         }
         last = X[coord];
     }
-
-    return bins;
 
 }
 
@@ -132,7 +131,7 @@ __device__ __host__ bool loopCalculateDiscreteModel(double* x, const double* val
 __global__ void calculateHistEntropyCuda(const double* const X,const int* XSize, const double* const params,
                                             const int* paramsSize, const int* paramNumber,const double* const paramLinspace,
                                             int* coord, double* tMax, double* transTime, double* h, double* startBin,
-                                            double* endBin, double* stepBin, double* histEntropy, int* histEntropySize) {
+                                            double* endBin, double* stepBin, double* histEntropy, int* histEntropySize , double** bins_global) {
 
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
 
@@ -153,15 +152,16 @@ __global__ void calculateHistEntropyCuda(const double* const X,const int* XSize,
         //самое проблемное место, выделение глобальной памяти в функции(мб можно создать 2d массив сразу в host функции)
         int binSize = static_cast<int>(ceil((*endBin - *startBin) / *stepBin));
         int sum = 0;
-        double* bins = CalculateHistogram(
-             *tMax, *h, X_local, params_local, *coord, *startBin, *endBin, *stepBin, sum);
 
-        double H = calculateEntropy(bins, binSize, sum);
+
+        CalculateHistogram(
+             *tMax, *h, X_local, params_local, *coord, *startBin, *endBin, *stepBin, sum, bins_global[idx]);
+
+        double H = calculateEntropy(bins_global[idx], binSize, sum);
         histEntropy[idx] = (H / __log2f(binSize));
 
         delete[] X_local; 
         delete[] params_local;
-        delete[] bins;
     }
 }
 
@@ -184,6 +184,7 @@ __global__ void calculateHistEntropyCuda(const double* const X,const int* XSize,
      linspaceStart  - Начало диапазона параметра
      linspaceEnd  - Конец диапазона параметра
      linspaceNum  - Количество точек параметра*/
+     
 __host__ std::vector<double> histEntropy2DCUDA(
     double transTime, double tMax, double h, 
     const std::vector<double>& X, int coord, 
@@ -200,7 +201,6 @@ __host__ std::vector<double> histEntropy2DCUDA(
     if (stepBin <= 0) throw std::invalid_argument("binStep <= 0");
     if (coord < 0 || coord >= X.size()) throw std::invalid_argument("coord out of range X");
     if (paramNumber < 0 || paramNumber >= params.size()) throw std::invalid_argument("paramNumber out of range params");
-
     int XSize = X.size();
     int paramsSize = params.size();
     std::vector<double> paramLinspace = linspace(linspaceStart, linspaceEnd, linspaceNum);
@@ -211,8 +211,8 @@ __host__ std::vector<double> histEntropy2DCUDA(
     // --- Выделение памяти на устройстве ---
     double *d_X, *d_params, *d_paramLinspace, *d_histEntropy;
     int *d_coord, *d_XSize, *d_paramsSize, *d_paramNumber, *d_histEntropySize;
-    double *d_tMax, *d_transTime, *d_h, *d_startBin, *d_endEdge, *d_stepEdge;
-
+    double *d_tMax, *d_transTime, *d_h, *d_startBin, *d_endBin, *d_stepEdge;
+    
     // глобальная памят все
     cudaMalloc((void**)&d_X, XSize * sizeof(double));
     cudaMalloc((void**)&d_params, paramsSize * sizeof(double));
@@ -226,7 +226,7 @@ __host__ std::vector<double> histEntropy2DCUDA(
     cudaMalloc((void**)&d_transTime, sizeof(double));
     cudaMalloc((void**)&d_h, sizeof(double));
     cudaMalloc((void**)&d_startBin, sizeof(double));
-    cudaMalloc((void**)&d_endEdge, sizeof(double));
+    cudaMalloc((void**)&d_endBin, sizeof(double));
     cudaMalloc((void**)&d_stepEdge, sizeof(double));
     cudaMalloc((void**)&d_histEntropySize, sizeof(int));
     
@@ -244,21 +244,10 @@ __host__ std::vector<double> histEntropy2DCUDA(
     cudaMemcpy(d_transTime, &transTime, sizeof(double), cudaMemcpyHostToDevice);
     cudaMemcpy(d_h, &h, sizeof(double), cudaMemcpyHostToDevice);
     cudaMemcpy(d_startBin, &startBin, sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_endEdge, &endBin, sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_endBin, &endBin, sizeof(double), cudaMemcpyHostToDevice);
     cudaMemcpy(d_stepEdge, &stepBin, sizeof(double), cudaMemcpyHostToDevice);
     cudaMemcpy(d_histEntropySize, &histEntropySize, sizeof(int), cudaMemcpyHostToDevice);
-
-    /*рассчет для большого количества бинов или параметров не работает 
-
-            a   rrrrr   ttttttt   gggggg    eeeeee     rrrrr
-          a a   r   r      t      g         e          r   r
-        a   a   rrrrr      t      g   gg    eeeeee     rrrrr
-      aaaaaaa   r r        t      g    g    e          r r
-    a       a   r   r      t      gggggg    eeeeee     r   r
-
-    нужно как-то подругому рассчитывать количество блоков 
-    |   |   |   |   |   |   |   |   |   |   |   |   |   |   |
-    v   v   v   v   v   v   v   v   v   v   v   v   v   v   v*/
+    
     
     int binMem = static_cast<int>(ceil((endBin - startBin) / stepBin))*sizeof(double);
     int paramMem = histEntropySize * sizeof(double);
@@ -274,32 +263,58 @@ __host__ std::vector<double> histEntropy2DCUDA(
     cudaDeviceProp deviceProp;
     cudaGetDeviceProperties(&deviceProp, device);
 
+    std::cout << "Max grid dimensions (blocks per dimension):" << std::endl;
+    std::cout << "  X: " << deviceProp.maxGridSize[0] << std::endl;
+    std::cout << "  Y: " << deviceProp.maxGridSize[1] << std::endl;
+    std::cout << "  Z: " << deviceProp.maxGridSize[2] << std::endl;
     // Память на блок:
     int sharedMemPerBlock = deviceProp.sharedMemPerBlock;
 
     int threadsPerBlock = deviceProp.maxThreadsPerBlock;
 
 // Проверяем, помещается ли память на один блок:
+/*
     while (threadsPerBlock * (binMem + paramMem) > sharedMemPerBlock) {
         threadsPerBlock /= 2;
     }
+    */
 
 // Вычисляем количество блоков:
     int numBlocks = (histEntropySize + threadsPerBlock - 1) / threadsPerBlock;
+
+
+    // Выделяем память для bins как двумерный массив для всех потоков
+    int binSize = static_cast<int>(ceil((endBin - startBin) / stepBin));
+    
+    double** hostBins = (double**)malloc((numBlocks * threadsPerBlock ) * sizeof(double*));
+    for (int i = 0; i < numBlocks * threadsPerBlock; ++i) {
+        cudaMalloc(&hostBins[i], binSize * sizeof(double));
+    }
+
+    double** bins;
+    cudaMalloc(&bins, (numBlocks * threadsPerBlock) * sizeof(double*));
+    cudaMemcpy(bins, hostBins, (numBlocks * threadsPerBlock) * sizeof(double*), cudaMemcpyHostToDevice);
+    free(hostBins);
+
 
     std::cout<<sharedMemPerBlock<<" "<<numBlocks<<" "<<threadsPerBlock<<"\n";
 
     calculateHistEntropyCuda<<<numBlocks, threadsPerBlock>>>(d_X, d_XSize, d_params, d_paramsSize,
                                             d_paramNumber, d_paramLinspace, d_coord, d_tMax, d_transTime, d_h,
-                                            d_startBin, d_endEdge, d_stepEdge, d_histEntropy, d_histEntropySize);
+                                            d_startBin, d_endBin, d_stepEdge, d_histEntropy, d_histEntropySize,bins);
 
     cudaError_t error = cudaGetLastError();
     if (error != cudaSuccess) {
         std::cerr << "CUDA error: " << cudaGetErrorString(error) << std::endl;
         throw std::runtime_error("CUDA kernel execution failed");
     }
+    
 
     cudaDeviceSynchronize();
+    size_t freeMem, totalMem;
+    cudaMemGetInfo(&freeMem, &totalMem);
+    std::cout << "Free memory: " << freeMem / (1024 * 1024) << " MB\n";
+    std::cout << "Total memory: " << totalMem / (1024 * 1024) << " MB\n";
 
     // --- Копирование результата обратно на хост ---
     cudaMemcpy(HistEntropy.data(), d_histEntropy, histEntropySize * sizeof(double), cudaMemcpyDeviceToHost);
@@ -321,7 +336,7 @@ __host__ std::vector<double> histEntropy2DCUDA(
     cudaFree(d_transTime);
     cudaFree(d_h);
     cudaFree(d_startBin);
-    cudaFree(d_endEdge);
+    cudaFree(d_endBin);
     cudaFree(d_stepEdge);
     cudaFree(d_histEntropySize);
 
@@ -330,6 +345,7 @@ __host__ std::vector<double> histEntropy2DCUDA(
 
 
 int main() {
+    printf("90");
     // Задаем параметры для расчета
     double transTime = 1000;  // Время переходного процесса
     double tMax = 2000;       // Время моделирования после TT
@@ -343,13 +359,12 @@ int main() {
 
     double startBin = -20; // Начало гистограммы
     double endBin = 20;    // Конец гистограммы
-    double stepBin = 0.1;  // Шаг бинов гистограммы
+    double stepBin = 0.01;  // Шаг бинов гистограммы
 
     // Параметры для linspace
     double linspaceStart = 0.1;  // Начало диапазона параметра
     double linspaceEnd = 0.35;   // Конец диапазона параметра
-    int linspaceNum = 4000;       // Количество точек параметра
-
+    int linspaceNum = 8000;       // Количество точек параметра
     //Вызов функции histEntropy2DCUDA
     std::vector<double> histEntropy = histEntropy2DCUDA(
                                         transTime, tMax, h,
