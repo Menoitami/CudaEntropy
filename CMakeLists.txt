@@ -29,4 +29,4 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CUDA_STANDARD 17)
 
 # Добавьте исходные файлы
-add_executable(CudaEntropy main.cu)
+add_executable(CudaEntropy main.cu lib.cuh)
