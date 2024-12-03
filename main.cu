@@ -7,8 +7,6 @@
 #include "lib.cuh"
 
 
-//////////paramNumberA - он один, нужно 2 ///назначить парамтеры, разобраться с бинами(возможно не надо), сделать правильное заполнение histEntropy
-
 __global__ void calculateHistEntropyCuda3D(const double* const X,const int* XSize, const double* const params,
                                             const int* paramsSize, const int* paramNumberA, const int* paramNumberB, const double* const paramLinspaceA,
                                             const double* const paramLinspaceB, const int* histEntropySizeRow,  const int* histEntropySizeCol,
@@ -16,6 +14,7 @@ __global__ void calculateHistEntropyCuda3D(const double* const X,const int* XSiz
                                             double* stepBin, double* histEntropy, int* histEntropySize , double** bins_global) {
 
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
+
 
     if (idx < *histEntropySize) {
 
@@ -27,9 +26,6 @@ __global__ void calculateHistEntropyCuda3D(const double* const X,const int* XSiz
 
         params_local[*paramNumberA] = paramLinspaceA[row]; 
         params_local[*paramNumberB] = paramLinspaceB[col]; 
-
-        //printf("%d %d %d %d\n",idx, row, col, *histEntropySizeCol);
-        //printf("%d %d %d \n\n",idx, paramLinspaceA[row], paramLinspaceB[col]);
 
         double* X_local = new double[*XSize];
         memcpy(X_local, X, *XSize * sizeof(double));
@@ -58,17 +54,21 @@ __host__ std::vector<double> histEntropyCUDA3D(
     const std::vector<double>& paramLinspaceA,const std::vector<double>& paramLinspaceB
 )
  {
-    // Проверки переменных
-    if (tMax <= 0) throw std::invalid_argument("tMax <= 0");
-    if (transTime <= 0) throw std::invalid_argument("transTime <= 0");
-    if (h <= 0) throw std::invalid_argument("h <= 0");
-    if (startBin >= endBin) throw std::invalid_argument("binStart >= binEnd");
-    if (stepBin <= 0) throw std::invalid_argument("binStep <= 0");
-    if (coord < 0 || coord >= X.size()) throw std::invalid_argument("coord out of range X");
-    if (paramNumberA < 0 || paramNumberA >= params.size()) throw std::invalid_argument("paramNumber out of range params param 1");
-    if (paramNumberB < 0 || paramNumberB >= params.size()) throw std::invalid_argument("paramNumber out of range params param 2");
-    if (paramNumberB == paramNumberA) throw std::invalid_argument("param 1 == param 2");
-
+    
+    try {
+        if (tMax <= 0) throw std::invalid_argument("tMax <= 0");
+        if (transTime <= 0) throw std::invalid_argument("transTime <= 0");
+        if (h <= 0) throw std::invalid_argument("h <= 0");
+        if (startBin >= endBin) throw std::invalid_argument("binStart >= binEnd");
+        if (stepBin <= 0) throw std::invalid_argument("binStep <= 0");
+        if (coord < 0 || coord >= X.size()) throw std::invalid_argument("coord out of range X");
+        if (paramNumberA < 0 || paramNumberA >= params.size()) throw std::invalid_argument("paramNumber out of range params param 1");
+        if (paramNumberB < 0 || paramNumberB >= params.size()) throw std::invalid_argument("paramNumber out of range params param 2");
+        if (paramNumberB == paramNumberA) throw std::invalid_argument("param 1 == param 2");
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return std::vector<double>(0); 
+    }
 
     int XSize = X.size();
     int paramsSize = params.size();
@@ -99,7 +99,7 @@ __host__ std::vector<double> histEntropyCUDA3D(
     cudaMalloc((void**)&d_XSize, sizeof(int));
     cudaMalloc((void**)&d_paramsSize, sizeof(int));
     cudaMalloc((void**)&d_paramNumberA, sizeof(int));
-     cudaMalloc((void**)&d_paramNumberB, sizeof(int));
+    cudaMalloc((void**)&d_paramNumberB, sizeof(int));
     cudaMalloc((void**)&d_coord, sizeof(int));
     cudaMalloc((void**)&d_tMax, sizeof(double));
     cudaMalloc((void**)&d_transTime, sizeof(double));
@@ -141,7 +141,6 @@ __host__ std::vector<double> histEntropyCUDA3D(
     int numBlocks = std::ceil((histEntropySize + threadsPerBlock - 1) / threadsPerBlock);
 
     std::cout<<sharedMemPerBlock<<" "<<numBlocks<<" "<<threadsPerBlock<<"\n";
-    //std::this_thread::sleep_for(std::chrono::milliseconds(10000));
     
     double** hostBins = (double**)malloc(histEntropySize * sizeof(double*));
     for (int i = 0; i < histEntropySize; ++i) {
@@ -176,23 +175,6 @@ __host__ std::vector<double> histEntropyCUDA3D(
     // --- Копирование результата обратно на хост ---
     cudaMemcpy(histEntropy.data(), d_histEntropy, histEntropySize * sizeof(double), cudaMemcpyDeviceToHost);
 
-    // for (int i = 0; i<histEntropySizeRow;++i){
-    //     for (int j = 0; j<histEntropySizeCol;++j){
-
-    //         std::cout<<histEntropy[i*histEntropySizeCol+j]<<" ";
-
-    //     }
-    // }
-
-    for (int i = 0; i<histEntropySizeCol;++i){
-        for (int j = 0; j<histEntropySizeRow;++j){
-
-            std::cout<<histEntropy[i*histEntropySizeRow+j]<<" ";
-
-        }
-        std::cout<<"\n\n\n";
-    }
-
     //--- Освобождение памяти ---
     cudaFree(d_X);
     cudaFree(d_params);
@@ -214,9 +196,11 @@ __host__ std::vector<double> histEntropyCUDA3D(
     cudaFree(d_histEntropySizeRow);
     cudaFree(d_histEntropySizeCol);
 
-    for (int i = 0; i < histEntropySizeRow; ++i) {
-    cudaFree(hostBins[i]);
+    for (int i = 0; i < histEntropySize; ++i) {
+        cudaFree(hostBins[i]);
     }
+    cudaFree(bins);
+    free(hostBins);
 
     return histEntropy;
 }
@@ -245,14 +229,14 @@ int main() {
     double linspaceEndA = 0.35;   // Конец диапазона параметра
     int linspaceNumA = 400;       // Количество точек параметра
     std::vector<double> paramLinspaceA = linspace(linspaceStartA, linspaceEndA, linspaceNumA);
-    int paramNumberA = 1;                             // Индекс параметра для анализа
+    int paramNumberA = 1;         // Индекс параметра для анализа
 
 
-    double linspaceStartB = 0.2;  // Начало диапазона параметра
-    double linspaceEndB = 0.2;   // Конец диапазона параметра
-    int linspaceNumB = 2;
+    double linspaceStartB = 0.1;  // Начало диапазона параметра
+    double linspaceEndB = 0.35;   // Конец диапазона параметра
+    int linspaceNumB = 400;       // Количество точек параметра
     std::vector<double> paramLinspaceB = linspace(linspaceStartB, linspaceEndB, linspaceNumB);
-    int paramNumberB = 2; 
+    int paramNumberB = 2;         // Индекс параметра для анализа
     //Вызов функции histEntropyCUDA2D
     std::vector<double> histEntropy = histEntropyCUDA3D(
                                         transTime, tMax, h,
