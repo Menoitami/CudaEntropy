@@ -50,7 +50,7 @@ __global__ void calculateHistEntropyCuda3D(const double* const X,const int* XSiz
     }
 }
 
-__host__ void writeToCSV(const std::vector<double*>& histEntropy2D, int rows, int cols, const std::string& filename) {
+__host__ void writeToCSV(const std::vector<std::vector<double>>& histEntropy2D, int rows, int cols, const std::string& filename) {
     std::ofstream outFile(filename);
 
     // Проверка на успешное открытие файла
@@ -62,7 +62,7 @@ __host__ void writeToCSV(const std::vector<double*>& histEntropy2D, int rows, in
     // Записываем данные в CSV файл
     for (int i = 0; i < rows; ++i) {
         for (int j = 0; j < cols; ++j) {
-            outFile << histEntropy2D[j][i];
+            outFile << histEntropy2D[i][j];
             if (j < cols - 1) {
                 outFile << ",";  // Разделитель для значений в строке
             }
@@ -74,7 +74,7 @@ __host__ void writeToCSV(const std::vector<double*>& histEntropy2D, int rows, in
     std::cout << "Данные успешно записаны в файл " << filename << std::endl;
 }
 
-__host__ std::vector<double> histEntropyCUDA3D(
+__host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     const double transTime,const double tMax,const double h, 
     const std::vector<double>& X,const int coord, 
     const std::vector<double>& params,const int paramNumberA,const int paramNumberB, 
@@ -208,11 +208,18 @@ __host__ std::vector<double> histEntropyCUDA3D(
     //     }
     // }
 
-    std::vector<double*> histEntropy2D(histEntropySizeRow);
+    // Создаем 2D представление с использованием std::vector
+    std::vector<std::vector<double>> histEntropy2D(histEntropySizeCol, std::vector<double>(histEntropySizeRow));
+
+    // Транспонируем данные
     for (int i = 0; i < histEntropySizeRow; ++i) {
-        histEntropy2D[i] = &histEntropy[i * histEntropySizeCol];
+        for (int j = 0; j < histEntropySizeCol; ++j) {
+            histEntropy2D[j][i] = histEntropy[i * histEntropySizeCol + j];
+        }
     }
 
+
+    /*
     for (int i = 0; i<histEntropySizeCol;++i){
         for (int j = 0; j<histEntropySizeRow;++j){
 
@@ -221,8 +228,8 @@ __host__ std::vector<double> histEntropyCUDA3D(
         }
         std::cout<<"\n\n\n";
     }
-
-    writeToCSV(histEntropy2D,histEntropySizeRow, histEntropySizeCol,"csvData.csv");
+*/
+    
     //--- Освобождение памяти ---
     cudaFree(d_X);
     cudaFree(d_params);
@@ -248,7 +255,7 @@ __host__ std::vector<double> histEntropyCUDA3D(
     cudaFree(hostBins[i]);
     }
 
-    return histEntropy;
+    return histEntropy2D;
 }
 
 
@@ -270,7 +277,7 @@ int main() {
     double stepBin = 0.1;  // Шаг бинов гистограммы
 
     // Параметры для linspace
-    double linspaceStartA = 0.1;  // Начало диапазона параметра
+    double linspaceStartA = 0.146;  // Начало диапазона параметра
     double linspaceEndA = 0.35;   // Конец диапазона параметра
     int linspaceNumA = 100;       // Количество точек параметра
     std::vector<double> paramLinspaceA = linspace(linspaceStartA, linspaceEndA, linspaceNumA);
@@ -283,15 +290,17 @@ int main() {
     std::vector<double> paramLinspaceB = linspace(linspaceStartB, linspaceEndB, linspaceNumB);
     int paramNumberB = 2; 
     //Вызов функции histEntropyCUDA2D
-    std::vector<double> histEntropy = histEntropyCUDA3D(
+    std::vector<std::vector<double>> histEntropy = histEntropyCUDA3D(
                                         transTime, tMax, h,
                                         X, coord,
                                         params, paramNumberA,paramNumberB,
                                         startBin, endBin, stepBin,
                                         paramLinspaceA, paramLinspaceB
                                     );
-
-    
+    for (int i =0; i<8;i++){
+        std::cout << histEntropy[0][i]<< " ";
+    }
+    writeToCSV(histEntropy,linspaceNumA,linspaceNumB,"csv.csv");
 
     // histEntropyCUDA2D(
     //     1000, 2000, 0.01,
