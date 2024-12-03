@@ -32,25 +32,23 @@ __host__ std::vector<double> linspace(double start, double end, int num) {
 __host__ void writeToCSV(const std::vector<std::vector<double>>& histEntropy2D, int rows, int cols, const std::string& filename) {
     std::ofstream outFile(filename);
 
-    // Проверка на успешное открытие файла
     if (!outFile.is_open()) {
-        std::cerr << "Не удалось открыть файл для записи!" << std::endl;
+        std::cerr << "Failed to open file for writing!" << std::endl;
         return;
     }
 
-    // Записываем данные в CSV файл
     for (int i = 0; i < rows; ++i) {
         for (int j = 0; j < cols; ++j) {
             outFile << histEntropy2D[i][j];
             if (j < cols - 1) {
-                outFile << ",";  // Разделитель для значений в строке
+                outFile << ","; 
             }
         }
-        outFile << "\n";  // Переход на новую строку после записи строки данных
+        outFile << "\n"; 
     }
 
-    outFile.close();  // Закрываем файл
-    std::cout << "Данные успешно записаны в файл " << filename << std::endl;
+    outFile.close();  
+    std::cout << "Data successfully written to file " << filename << std::endl;
 }
 std::vector<std::vector<double>> convert1DTo2D(const std::vector<double>& histEntropy1D) {
     return {histEntropy1D};

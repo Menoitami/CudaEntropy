@@ -30,8 +30,8 @@ int main(int argc, char* argv[]) {
 
     // Параметры для linspace
     double linspaceStartA = 0.1;  // Начало диапазона параметра
-    double linspaceEndA = 0.2;   // Конец диапазона параметра
-    int linspaceNumA = 100;       // Количество точек параметра
+    double linspaceEndA = 0.35;   // Конец диапазона параметра
+    int linspaceNumA = 400;       // Количество точек параметра
     std::vector<double> paramLinspaceA = linspace(linspaceStartA, linspaceEndA, linspaceNumA);
     int paramNumberA = 1;         // Индекс параметра для анализа
 
@@ -41,16 +41,20 @@ int main(int argc, char* argv[]) {
     int linspaceNumB = 100;
     std::vector<double> paramLinspaceB = linspace(linspaceStartB, linspaceEndB, linspaceNumB);
     int paramNumberB = 2;         // Индекс параметра для анализа
-                                  //Вызов функции histEntropyCUDA2D
-    std::vector<std::vector<double>> histEntropy = histEntropyCUDA3D(
+
+    //Вызов функции histEntropyCUDA3D
+    std::vector<std::vector<double>> histEntropy3D = histEntropyCUDA3D(
                                         transTime, tMax, h,
                                         X, coord,
                                         params, paramNumberA,paramNumberB,
                                         startBin, endBin, stepBin,
                                         paramLinspaceA, paramLinspaceB
                                     );
-    
-    // std::vector<double> histEntropy = histEntropyCUDA2D(
+
+    writeToCSV(histEntropy3D,linspaceNumB,linspaceNumA,inputString);
+
+    //Вызов функции histEntropyCUDA2D
+    // std::vector<double> histEntropy2D = histEntropyCUDA2D(
     //                                     transTime, tMax, h,
     //                                     X, coord,
     //                                     params, paramNumberA,
@@ -58,10 +62,7 @@ int main(int argc, char* argv[]) {
     //                                     paramLinspaceA
     //                                 );
 
-
-    writeToCSV(histEntropy,linspaceNumA,linspaceNumB,inputString);
-
+    // writeToCSV(histEntropy2D,1,linspaceNumA,inputString);
     
-
     return 0;
 }
