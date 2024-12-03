@@ -70,6 +70,20 @@ __host__ void writeToCSV(const std::vector<std::vector<double>>& histEntropy2D, 
     std::cout << "Данные успешно записаны в файл " << filename << std::endl;
 }
 
+std::vector<std::vector<double>> convert1DTo2D(const std::vector<double>& histEntropy1D, int rows, int cols) {
+    std::vector<std::vector<double>> histEntropy2D(rows, std::vector<double>(cols));
+    for (int i = 0; i < rows; ++i) {
+        for (int j = 0; j < cols; ++j) {
+            histEntropy2D[i][j] = histEntropy1D[i * cols + j];
+        }
+    }
+    return histEntropy2D;
+}
+__host__ void writeToCSV(const std::vector<double>& histEntropy1D, int rows, int cols, const std::string& filename) {
+    auto histEntropy2D = convert1DTo2D(histEntropy1D, rows, cols);
+    writeToCSV(histEntropy2D, rows, cols, filename);
+}
+
 __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     const double transTime,const double tMax,const double h, 
     const std::vector<double>& X,const int coord, 
