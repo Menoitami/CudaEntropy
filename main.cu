@@ -5,7 +5,8 @@
 #include <thread>
 #include <chrono>
 #include "lib.cuh"
-
+#include <fstream>
+#include <string>
 
 //////////paramNumberA - он один, нужно 2 ///назначить парамтеры, разобраться с бинами(возможно не надо), сделать правильное заполнение histEntropy
 
@@ -49,6 +50,29 @@ __global__ void calculateHistEntropyCuda3D(const double* const X,const int* XSiz
     }
 }
 
+__host__ void writeToCSV(const std::vector<double*>& histEntropy2D, int rows, int cols, const std::string& filename) {
+    std::ofstream outFile(filename);
+
+    // Проверка на успешное открытие файла
+    if (!outFile.is_open()) {
+        std::cerr << "Не удалось открыть файл для записи!" << std::endl;
+        return;
+    }
+
+    // Записываем данные в CSV файл
+    for (int i = 0; i < rows; ++i) {
+        for (int j = 0; j < cols; ++j) {
+            outFile << histEntropy2D[j][i];
+            if (j < cols - 1) {
+                outFile << ",";  // Разделитель для значений в строке
+            }
+        }
+        outFile << "\n";  // Переход на новую строку после записи строки данных
+    }
+
+    outFile.close();  // Закрываем файл
+    std::cout << "Данные успешно записаны в файл " << filename << std::endl;
+}
 
 __host__ std::vector<double> histEntropyCUDA3D(
     const double transTime,const double tMax,const double h, 
@@ -184,15 +208,21 @@ __host__ std::vector<double> histEntropyCUDA3D(
     //     }
     // }
 
+    std::vector<double*> histEntropy2D(histEntropySizeRow);
+    for (int i = 0; i < histEntropySizeRow; ++i) {
+        histEntropy2D[i] = &histEntropy[i * histEntropySizeCol];
+    }
+
     for (int i = 0; i<histEntropySizeCol;++i){
         for (int j = 0; j<histEntropySizeRow;++j){
 
-            std::cout<<histEntropy[i*histEntropySizeRow+j]<<" ";
+            std::cout<<histEntropy[j*histEntropySizeCol+i]<<" ";
 
         }
         std::cout<<"\n\n\n";
     }
 
+    writeToCSV(histEntropy2D,histEntropySizeRow, histEntropySizeCol,"csvData.csv");
     //--- Освобождение памяти ---
     cudaFree(d_X);
     cudaFree(d_params);
@@ -222,7 +252,6 @@ __host__ std::vector<double> histEntropyCUDA3D(
 }
 
 
-
 int main() {
    
     // Задаем параметры для расчета
@@ -243,14 +272,14 @@ int main() {
     // Параметры для linspace
     double linspaceStartA = 0.1;  // Начало диапазона параметра
     double linspaceEndA = 0.35;   // Конец диапазона параметра
-    int linspaceNumA = 400;       // Количество точек параметра
+    int linspaceNumA = 100;       // Количество точек параметра
     std::vector<double> paramLinspaceA = linspace(linspaceStartA, linspaceEndA, linspaceNumA);
     int paramNumberA = 1;                             // Индекс параметра для анализа
 
 
     double linspaceStartB = 0.2;  // Начало диапазона параметра
     double linspaceEndB = 0.2;   // Конец диапазона параметра
-    int linspaceNumB = 2;
+    int linspaceNumB = 100;
     std::vector<double> paramLinspaceB = linspace(linspaceStartB, linspaceEndB, linspaceNumB);
     int paramNumberB = 2; 
     //Вызов функции histEntropyCUDA2D
