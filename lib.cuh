@@ -52,6 +52,13 @@ __host__ void writeToCSV(const std::vector<std::vector<double>>& histEntropy2D, 
     outFile.close();  // Закрываем файл
     std::cout << "Данные успешно записаны в файл " << filename << std::endl;
 }
+std::vector<std::vector<double>> convert1DTo2D(const std::vector<double>& histEntropy1D) {
+    return {histEntropy1D};
+}
+__host__ void writeToCSV(const std::vector<double>& histEntropy1D, int rows, int cols, const std::string& filename) {
+    auto histEntropy2D = convert1DTo2D(histEntropy1D);
+    writeToCSV(histEntropy2D, 1, cols, filename);
+}
 
 __device__ __host__ void calculateDiscreteModel(double* x, const double* a, const double h)
 {
