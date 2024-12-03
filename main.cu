@@ -249,8 +249,7 @@ __host__ std::vector<double> histEntropy2DCUDA(
     cudaMemcpy(d_histEntropySize, &histEntropySize, sizeof(int), cudaMemcpyHostToDevice);
     
     
-    int binMem = static_cast<int>(ceil((endBin - startBin) / stepBin))*sizeof(double);
-    int paramMem = histEntropySize * sizeof(double);
+    //int binMem = static_cast<int>(ceil((endBin - startBin) / stepBin))*sizeof(double);
 
     // int threadsPerBlock = 1024; // начальное значение
     // while (threadsPerBlock * (binMem + paramMem) > 49152) {
