@@ -89,6 +89,26 @@ __device__ __host__ void calculateDiscreteModel(double* x, const double* a, cons
 
 }
 
+__device__ __host__ bool loopCalculateDiscreteModel(double* x, const double* values, const double h,
+ const int amountOfIterations, const int preScaller,
+ int writableVar, const double maxValue, double* data, const int startDataIndex, const int writeStep)
+{
+ for (int i = 0; i < amountOfIterations; ++i)
+ {
+  if (data != nullptr)
+   data[startDataIndex + i * writeStep] = x[writableVar];
+
+  for (int j = 0; j < preScaller - 1; ++j) calculateDiscreteModel(x, values, h);
+
+  calculateDiscreteModel(x, values, h);
+
+  if (maxValue != 0)
+   if (fabsf(x[writableVar]) > maxValue)
+    return false;
+ }
+ return true;
+}
+
 __device__  double calculateEntropy(double* bins, int binSize, const int sum) {
     double entropy = 0.0;
 
@@ -101,7 +121,6 @@ __device__  double calculateEntropy(double* bins, int binSize, const int sum) {
 
     return entropy;
 }
-
 
 
 __device__ __host__ void CalculateHistogram(
@@ -136,27 +155,6 @@ __device__ __host__ void CalculateHistogram(
         last = X[coord];
     }
 
-}
-
-
-__device__ __host__ bool loopCalculateDiscreteModel(double* x, const double* values, const double h,
- const int amountOfIterations, const int preScaller,
- int writableVar, const double maxValue, double* data, const int startDataIndex, const int writeStep)
-{
- for (int i = 0; i < amountOfIterations; ++i)
- {
-  if (data != nullptr)
-   data[startDataIndex + i * writeStep] = x[writableVar];
-
-  for (int j = 0; j < preScaller - 1; ++j) calculateDiscreteModel(x, values, h);
-
-  calculateDiscreteModel(x, values, h);
-
-  if (maxValue != 0)
-   if (fabsf(x[writableVar]) > maxValue)
-    return false;
- }
- return true;
 }
 
 
@@ -324,8 +322,6 @@ __host__ std::vector<double> histEntropyCUDA2D(
     int device = 0;
     cudaDeviceProp deviceProp;
     cudaGetDeviceProperties(&deviceProp, device);
-    
-    int sharedMemPerBlock = deviceProp.sharedMemPerBlock;
 
     int threadsPerBlock = deviceProp.maxThreadsPerBlock;
 
