@@ -7,6 +7,9 @@
 #include <fstream>
 #include <string>
 #include <thread>
+#include <nvrtc.h>
+#include <cooperative_groups.h>
+
 
 #define CHECK_CUDA_ERROR(call)                                             \
     {                                                                      \
@@ -89,20 +92,6 @@ __host__ void writeToCSV(const std::vector<double>& histEntropy1D, int cols, con
 
 __device__ __host__ void calculateDiscreteModel(double* x, const double* a, const double h)
 {
-	/**
-	 * here we abstract from the concept of parameter names. 
-	 * ALL parameters are numbered with indices. 
-	 * In the current example, the parameters go like this:
-	 * 
-	 * values[0] - sym
-	 * values[1] - A
-	 * values[2] - B
-	 * values[3] - C
-	 */
-
-	//x[0] = x[0] + h * (-x[1] - x[2]);
-	//x[1] = x[1] + h * (x[0] + a[0] * x[1]);
-	//x[2] = x[2] + h * (a[1] + x[2] * (x[0] - a[2]));
 
     double h1 = 0.5 * h + a[0];
     double h2 = 0.5 * h - a[0];
@@ -122,20 +111,20 @@ __device__ __host__ bool loopCalculateDiscreteModel(double* x, const double* val
  const int amountOfIterations, const int preScaller,
  int writableVar, const double maxValue, double* data, const int startDataIndex, const int writeStep)
 {
- for (int i = 0; i < amountOfIterations; ++i)
- {
-  if (data != nullptr)
-   data[startDataIndex + i * writeStep] = x[writableVar];
+    bool exceededMaxValue = (maxValue != 0);
+    for (int i = 0; i < amountOfIterations; ++i)
+    {
+        if (data != nullptr)
+        data[startDataIndex + i * writeStep] = x[writableVar];
 
-  for (int j = 0; j < preScaller - 1; ++j) calculateDiscreteModel(x, values, h);
+        for (int j = 0; j < preScaller - 1; ++j) calculateDiscreteModel(x, values, h);
 
-  calculateDiscreteModel(x, values, h);
+        calculateDiscreteModel(x, values, h);
 
-  if (maxValue != 0)
-   if (fabsf(x[writableVar]) > maxValue)
-    return false;
- }
- return true;
+        if (exceededMaxValue && fabsf(x[writableVar]) > maxValue)
+            return false;
+    }
+    return true;
 }
 
 __device__  double calculateEntropy(double* bins, int binSize, const int sum) {
@@ -229,6 +218,7 @@ __global__ void calculateHistEntropyCuda3D(const double* const X,
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
 
     //printf("Accessing bins_global at idx: %d\n",d_histEntropySize);
+
     if (idx < d_histEntropySize) {
 
         int row = idx/ d_histEntropySizeCol;
@@ -236,6 +226,7 @@ __global__ void calculateHistEntropyCuda3D(const double* const X,
 
         double* params_local = new double[d_paramsSize];
         double* X_local = new double[d_XSize];
+
 
         memcpy(params_local, params, d_paramsSize * sizeof(double));
         memcpy(X_local, X, d_XSize * sizeof(double));
@@ -267,7 +258,7 @@ __global__ void calculateHistEntropyCuda3D(const double* const X,
         if ((progress + 1) % (d_histEntropySize / 10) == 0) {
             printf("Progress: %d%%\n", ((progress + 1) * 100) / d_histEntropySize);
         }
-
+        
 
     }
 }
@@ -521,11 +512,18 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     int device = 0;
     cudaDeviceProp deviceProp;
     CHECK_CUDA_ERROR(cudaGetDeviceProperties(&deviceProp, device));
-    
-    const int threadsPerBlock = deviceProp.maxThreadsPerBlock;
-    const int numBlocks = std::ceil((histEntropySize + threadsPerBlock - 1) / threadsPerBlock);
+//Адаптивное колличество блоков 
+    const int maxThreadsPerBlock = 256;  // Максимальное количество потоков на блок
+    int numBlocks = deviceProp.multiProcessorCount * 4;  
+    int threadsPerBlock = std::ceil(histEntropySize / (float)numBlocks); 
 
-    std::cout<<"blocks: "<<numBlocks<<" threads: "<<threadsPerBlock<<"\n";
+    if (threadsPerBlock > maxThreadsPerBlock) {
+        threadsPerBlock = maxThreadsPerBlock;
+        numBlocks = std::ceil(histEntropySize / (float)threadsPerBlock);
+    }
+
+
+    std::cout<<"blocks: "<<numBlocks<<" threads: "<<threadsPerBlock<<" sm's: " << deviceProp.multiProcessorCount<<"\n";
     
     double** hostBins = (double**)malloc(histEntropySize * sizeof(double*));
     for (int i = 0; i < histEntropySize; ++i) {
@@ -555,6 +553,7 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     cudaMemGetInfo(&freeMem, &totalMem);
     std::cout << "Free memory: " << freeMem / (1024 * 1024) << " MB\n";
     std::cout << "Total memory: " << totalMem / (1024 * 1024) << " MB\n";
+    std::cout << "Total constant memory: " << deviceProp.totalConstMem / (1024 ) << " kB\n";
 
     // --- Копирование результата обратно на хост ---
     cudaMemcpy(histEntropy.data(), d_histEntropy, histEntropySize * sizeof(double), cudaMemcpyDeviceToHost);
