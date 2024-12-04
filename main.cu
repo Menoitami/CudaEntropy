@@ -12,6 +12,23 @@ int main(int argc, char* argv[]) {
     }
 
     std::string inputString = argv[1];
+
+    if (inputString.size() < 4 || 
+        (inputString.substr(inputString.size() - 4) != ".csv" &&
+         inputString.substr(inputString.size() - 4) != ".txt")) {
+        std::cerr << "Error: File must have a .csv or .txt extension!" << std::endl;
+        return 1;
+    }
+
+    std::ofstream outFile(inputString);
+
+    if (!outFile.is_open()) {
+        std::cerr << "Failed to open file for writing!" << std::endl;
+        return 1;
+    }
+
+    outFile.close();
+
    
     // Задаем параметры для расчета
     double transTime = 1000;  // Время переходного процесса
@@ -36,33 +53,33 @@ int main(int argc, char* argv[]) {
     int paramNumberA = 1;         // Индекс параметра для анализа
 
 
-    double linspaceStartB = 0.1;  // Начало диапазона параметра
+    double linspaceStartB = 0.2;  // Начало диапазона параметра
     double linspaceEndB = 0.2;   // Конец диапазона параметра
     int linspaceNumB = 100;
     std::vector<double> paramLinspaceB = linspace(linspaceStartB, linspaceEndB, linspaceNumB);
     int paramNumberB = 2;         // Индекс параметра для анализа
 
     //Вызов функции histEntropyCUDA3D
-    std::vector<std::vector<double>> histEntropy3D = histEntropyCUDA3D(
-                                        transTime, tMax, h,
-                                        X, coord,
-                                        params, paramNumberA,paramNumberB,
-                                        startBin, endBin, stepBin,
-                                        paramLinspaceA, paramLinspaceB
-                                    );
-
-    writeToCSV(histEntropy3D,linspaceNumB,linspaceNumA,inputString);
-
-    //Вызов функции histEntropyCUDA2D
-    // std::vector<double> histEntropy2D = histEntropyCUDA2D(
+    // std::vector<std::vector<double>> histEntropy3D = histEntropyCUDA3D(
     //                                     transTime, tMax, h,
     //                                     X, coord,
-    //                                     params, paramNumberA,
+    //                                     params, paramNumberA,paramNumberB,
     //                                     startBin, endBin, stepBin,
-    //                                     paramLinspaceA
+    //                                     paramLinspaceA, paramLinspaceB
     //                                 );
 
-    // writeToCSV(histEntropy2D,1,linspaceNumA,inputString);
+    // writeToCSV(histEntropy3D,linspaceNumA,linspaceNumB,inputString);
+
+    //Вызов функции histEntropyCUDA2D
+    std::vector<double> histEntropy2D = histEntropyCUDA2D(
+                                        transTime, tMax, h,
+                                        X, coord,
+                                        params, paramNumberA,
+                                        startBin, endBin, stepBin,
+                                        paramLinspaceA
+                                    );
+
+    writeToCSV(histEntropy2D,linspaceNumA,inputString);
     
     return 0;
 }

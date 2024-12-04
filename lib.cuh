@@ -29,7 +29,7 @@ __host__ std::vector<double> linspace(double start, double end, int num) {
     return result;
 }
 
-__host__ void writeToCSV(const std::vector<std::vector<double>>& histEntropy2D, int rows, int cols, const std::string& filename) {
+__host__ void writeToCSV(const std::vector<std::vector<double>>& histEntropy2D, int cols, int rows, const std::string& filename) {
     std::ofstream outFile(filename);
 
     if (!outFile.is_open()) {
@@ -53,9 +53,9 @@ __host__ void writeToCSV(const std::vector<std::vector<double>>& histEntropy2D, 
 std::vector<std::vector<double>> convert1DTo2D(const std::vector<double>& histEntropy1D) {
     return {histEntropy1D};
 }
-__host__ void writeToCSV(const std::vector<double>& histEntropy1D, int rows, int cols, const std::string& filename) {
+__host__ void writeToCSV(const std::vector<double>& histEntropy1D, int cols, const std::string& filename) {
     auto histEntropy2D = convert1DTo2D(histEntropy1D);
-    writeToCSV(histEntropy2D, 1, cols, filename);
+    writeToCSV(histEntropy2D, cols, 1, filename);
 }
 
 __device__ __host__ void calculateDiscreteModel(double* x, const double* a, const double h)
@@ -331,7 +331,7 @@ __host__ std::vector<double> histEntropyCUDA2D(
 
     int numBlocks = std::ceil((histEntropySize + threadsPerBlock - 1) / threadsPerBlock);
 
-    std::cout<<sharedMemPerBlock<<" "<<numBlocks<<" "<<threadsPerBlock<<"\n";
+    std::cout<<"Blocks: "<<numBlocks<<" threads: "<<threadsPerBlock<<"\n";
     
     double** hostBins = (double**)malloc(histEntropySize * sizeof(double*));
     for (int i = 0; i < histEntropySize; ++i) {
