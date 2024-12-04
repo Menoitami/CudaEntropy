@@ -6,7 +6,36 @@
 #include <cuda_runtime.h>
 #include <fstream>
 #include <string>
+#include <thread>
 
+#define CHECK_CUDA_ERROR(call)                                             \
+    {                                                                      \
+        cudaError_t err = call;                                            \
+        if (err != cudaSuccess) {                                          \
+            std::cerr << "CUDA Error: " << cudaGetErrorString(err)         \
+                      << " in file " << __FILE__ << " at line " << __LINE__ \
+                      << std::endl;                                        \
+            exit(err);                                                     \
+        }                                                                  \
+    }
+
+
+__constant__ int d_histEntropySize;
+__constant__ int d_histEntropySizeRow;
+__constant__ int d_histEntropySizeCol;
+__constant__ double d_startBin;
+__constant__ double d_endBin;
+__constant__ double d_stepBin;
+__constant__ double d_tMax;
+__constant__ double d_transTime;
+__constant__ double d_h;
+__constant__ int d_coord;
+__constant__ int d_paramsSize;
+__constant__ int d_XSize;
+__constant__ int d_paramNumberA;
+__constant__ int d_paramNumberB;
+
+__device__ int d_progress;
 __device__ const double EPSD = std::numeric_limits<double>::epsilon();
 
 
@@ -124,15 +153,15 @@ __device__  double calculateEntropy(double* bins, int binSize, const int sum) {
 
 
 __device__ __host__ void CalculateHistogram(
-    const double& totalTime, const double& stepSize, double* X, const double* param, int coord,
-    double binStart, double binEnd, double binStep, int& sum, double* bins) {
+    double* X, const double* param,
+     int& sum, double* bins) {
 
 
-    int iterations = static_cast<int>(totalTime / stepSize);
-    double last = X[coord];
+    int iterations = static_cast<int>(d_tMax / d_h);
+    double last = X[d_coord];
     bool lastBigger = false;
 
-    int binSize = static_cast<int>(ceil((binEnd - binStart) / binStep));
+    int binSize = static_cast<int>(ceil((d_endBin - d_startBin) / d_stepBin));
 
     for (int i = 0; i < binSize; ++i) {
         bins[i] = 0.0;
@@ -140,24 +169,24 @@ __device__ __host__ void CalculateHistogram(
 
 
     for (int i = 0; i < iterations; ++i) {
-        calculateDiscreteModel(X, param, stepSize);
+        calculateDiscreteModel(X, param, d_h);
 
-        if (X[coord] > last) {
+        if (X[d_coord] > last) {
             lastBigger = true;
-        } else if (X[coord] < last && lastBigger) {
-            if (last >= binStart && last < binEnd) {
-                int index = static_cast<int>((last - binStart) / binStep);
+        } else if (X[d_coord] < last && lastBigger) {
+            if (last >= d_startBin && last < d_endBin) {
+                int index = static_cast<int>((last - d_startBin) / d_stepBin);
                 bins[index]++;
                 sum++;
             }
             lastBigger = false;
         }
-        last = X[coord];
+        last = X[d_coord];
     }
 
 }
 
-
+/*
 __global__ void calculateHistEntropyCuda2D(const double* const X,const int* XSize, const double* const params,
                                             const int* paramsSize, const int* paramNumber,const double* const paramLinspace,
                                             int* coord, double* tMax, double* transTime, double* h, double* startBin,
@@ -189,42 +218,57 @@ __global__ void calculateHistEntropyCuda2D(const double* const X,const int* XSiz
         delete[] params_local;
     }
 }
-
-__global__ void calculateHistEntropyCuda3D(const double* const X,const int* XSize, const double* const params,
-                                            const int* paramsSize, const int* paramNumberA, const int* paramNumberB, const double* const paramLinspaceA,
-                                            const double* const paramLinspaceB, const int* histEntropySizeRow,  const int* histEntropySizeCol,
-                                            int* coord, double* tMax, double* transTime, double* h, double* startBin, double* endBin,
-                                            double* stepBin, double* histEntropy, int* histEntropySize , double** bins_global) {
+*/
+__global__ void calculateHistEntropyCuda3D(const double* const X, 
+                                           const double* const params,
+                                           const double* const paramLinspaceA,
+                                           const double* const paramLinspaceB,
+                                           double* histEntropy, 
+                                           double** bins_global) {
 
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
 
+    //printf("Accessing bins_global at idx: %d\n",d_histEntropySize);
+    if (idx < d_histEntropySize) {
 
-    if (idx < *histEntropySize) {
+        int row = idx/ d_histEntropySizeCol;
+        int col = idx % d_histEntropySizeCol;
 
-        int row = idx/ *histEntropySizeCol;
-        int col = idx % *histEntropySizeCol;
+        double* params_local = new double[d_paramsSize];
+        double* X_local = new double[d_XSize];
 
-        double* params_local = new double[*paramsSize];
-        memcpy(params_local, params, *paramsSize * sizeof(double));   
+        memcpy(params_local, params, d_paramsSize * sizeof(double));
+        memcpy(X_local, X, d_XSize * sizeof(double));
 
-        params_local[*paramNumberA] = paramLinspaceA[row]; 
-        params_local[*paramNumberB] = paramLinspaceB[col]; 
+        params_local[d_paramNumberA] = paramLinspaceA[row];
+        params_local[d_paramNumberB] = paramLinspaceB[col];
 
-        double* X_local = new double[*XSize];
-        memcpy(X_local, X, *XSize * sizeof(double));
+        loopCalculateDiscreteModel(X_local, params_local, d_h, 
+                                   static_cast<int>(d_transTime / d_h), 
+                                   0, 0, 0, nullptr, 0, 0);
 
-        loopCalculateDiscreteModel(X_local, params_local, *h, static_cast<int>(*transTime / *h), 0, 0, 0,nullptr,0, 0);
-        int binSize = static_cast<int>(ceil((*endBin - *startBin) / *stepBin));
+        int binSize = static_cast<int>(ceil((d_endBin - d_startBin) / d_stepBin));
         int sum = 0;
 
         CalculateHistogram(
-             *tMax, *h, X_local, params_local, *coord, *startBin, *endBin, *stepBin, sum, bins_global[idx]);
+             X_local, params_local, sum, bins_global[idx]);
 
         double H = calculateEntropy(bins_global[idx], binSize, sum);
-        histEntropy[row * *histEntropySizeCol + col] = (H / __log2f(binSize));
 
-        delete[] X_local; 
+        // Нормализуем и сохраняем результат в глобальную память
+        histEntropy[row * d_histEntropySizeCol + col] = (H / __log2f(binSize));
+
         delete[] params_local;
+        delete[] X_local;
+
+        // Вывод прогресса
+        
+        int progress = atomicAdd(&d_progress, 1);
+        if ((progress + 1) % (d_histEntropySize / 10) == 0) {
+            printf("Progress: %d%%\n", ((progress + 1) * 100) / d_histEntropySize);
+        }
+
+
     }
 }
 
@@ -247,7 +291,7 @@ __global__ void calculateHistEntropyCuda3D(const double* const X,const int* XSiz
      linspaceStart  - Начало диапазона параметра
      linspaceEnd  - Конец диапазона параметра
      linspaceNum  - Количество точек параметра*/
-     
+     /*
 __host__ std::vector<double> histEntropyCUDA2D(
     const double transTime,const double tMax,const double h, 
     const std::vector<double>& X,const int coord, 
@@ -278,6 +322,7 @@ __host__ std::vector<double> histEntropyCUDA2D(
     std::vector<double> HistEntropy(histEntropySize);
 
     int binSize = static_cast<int>(ceil((endBin - startBin) / stepBin));
+
 
     // --- Выделение памяти на устройстве ---
     double *d_X, *d_params, *d_paramLinspace, *d_histEntropy;
@@ -385,7 +430,7 @@ __host__ std::vector<double> histEntropyCUDA2D(
 
     return HistEntropy;
 }
-
+*/
 /*   Рассчет гистограмной энтропии по одному параметру
      transTime  - Время переходного процесса
      tMax -   Время моделирования после TT
@@ -406,6 +451,7 @@ __host__ std::vector<double> histEntropyCUDA2D(
      linspaceEnd  - Конец диапазона параметра
      linspaceNum  - Количество точек параметра*/
      
+
 
 __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     const double transTime,const double tMax,const double h, 
@@ -435,69 +481,49 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     int paramsSize = params.size();
     int histEntropySizeRow = paramLinspaceA.size();
     int histEntropySizeCol = paramLinspaceB.size();
-
     int histEntropySize = histEntropySizeRow * histEntropySizeCol;
+    int binSize = static_cast<int>(ceil((endBin - startBin) / stepBin));
+    
+    CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_startBin, &startBin, sizeof(double)));
+    CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_endBin, &endBin, sizeof(double)));
+    CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_stepBin, &stepBin, sizeof(double)));
+    CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_tMax, &tMax, sizeof(double)));
+    CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_transTime, &transTime, sizeof(double)));
+    CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_h, &h, sizeof(double)));
+    CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_coord, &coord, sizeof(int)));
+    CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_XSize, &XSize, sizeof(int)));
+    CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_paramsSize, &paramsSize, sizeof(int)));
+    CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_histEntropySize, &histEntropySize, sizeof(int)));
+    CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_histEntropySizeRow, &histEntropySizeRow, sizeof(int)));
+    CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_histEntropySizeCol, &histEntropySizeCol, sizeof(int)));
+    CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_paramNumberA, &paramNumberA, sizeof(int)));
+    CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_paramNumberB, &paramNumberB, sizeof(int)));
 
+    std::cout<<histEntropySize<<"\n";
     std::vector<double> histEntropy(histEntropySize);
 
-    // Выделяем память для bins как двумерный массив для всех потоков
-    int binSize = static_cast<int>(ceil((endBin - startBin) / stepBin));
-
     // --- Выделение памяти на устройстве ---
-    double *d_X, *d_params, *d_paramLinspaceA,*d_paramLinspaceB, *d_histEntropy;
-    int *d_coord, *d_XSize, *d_paramsSize, *d_paramNumberA, *d_paramNumberB, *d_histEntropySize,*d_histEntropySizeRow,*d_histEntropySizeCol;
-    double *d_tMax, *d_transTime, *d_h, *d_startBin, *d_endBin, *d_stepBin;
+    double *d_X, *d_params, *d_paramLinspaceA, *d_paramLinspaceB, *d_histEntropy;
     
     // глобальная памят все
-    cudaMalloc((void**)&d_X, XSize * sizeof(double));
-    cudaMalloc((void**)&d_params, paramsSize * sizeof(double));
-    cudaMalloc((void**)&d_paramLinspaceA, histEntropySizeRow * sizeof(double));
-    cudaMalloc((void**)&d_paramLinspaceB, histEntropySizeCol * sizeof(double));
-    cudaMalloc((void**)&d_histEntropy, histEntropySize * sizeof(double));
-    cudaMalloc((void**)&d_histEntropySize, sizeof(int));
-    cudaMalloc((void**)&d_histEntropySizeRow, sizeof(int));
-    cudaMalloc((void**)&d_histEntropySizeCol, sizeof(int));
-    cudaMalloc((void**)&d_XSize, sizeof(int));
-    cudaMalloc((void**)&d_paramsSize, sizeof(int));
-    cudaMalloc((void**)&d_paramNumberA, sizeof(int));
-    cudaMalloc((void**)&d_paramNumberB, sizeof(int));
-    cudaMalloc((void**)&d_coord, sizeof(int));
-    cudaMalloc((void**)&d_tMax, sizeof(double));
-    cudaMalloc((void**)&d_transTime, sizeof(double));
-    cudaMalloc((void**)&d_h, sizeof(double));
-    cudaMalloc((void**)&d_startBin, sizeof(double));
-    cudaMalloc((void**)&d_endBin, sizeof(double));
-    cudaMalloc((void**)&d_stepBin, sizeof(double));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_X, XSize * sizeof(double)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_params, paramsSize * sizeof(double)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_paramLinspaceA, histEntropySizeRow * sizeof(double)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_paramLinspaceB, histEntropySizeCol * sizeof(double)));
+    CHECK_CUDA_ERROR(cudaMalloc(&d_histEntropy, histEntropySize * sizeof(double)));
 
 
-    // --- Копирование данных с хоста на устройство ---
-    cudaMemcpy(d_X, X.data(), XSize * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_params, params.data(), paramsSize * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_paramLinspaceA, paramLinspaceA.data(), histEntropySizeRow * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_paramLinspaceB, paramLinspaceB.data(), histEntropySizeCol * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_histEntropy, histEntropy.data(), histEntropySize * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_histEntropySize, &histEntropySize, sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_histEntropySizeRow, &histEntropySizeRow, sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_histEntropySizeCol, &histEntropySizeCol, sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_XSize, &XSize, sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_paramsSize, &paramsSize, sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_paramNumberA, &paramNumberA, sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_paramNumberB, &paramNumberB, sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_coord, &coord, sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_tMax, &tMax, sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_transTime, &transTime, sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_h, &h, sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_startBin, &startBin, sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_endBin, &endBin, sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_stepBin, &stepBin, sizeof(double), cudaMemcpyHostToDevice);
+    CHECK_CUDA_ERROR(cudaMemcpy(d_X, X.data(), XSize * sizeof(double), cudaMemcpyHostToDevice));
+    CHECK_CUDA_ERROR(cudaMemcpy(d_params, params.data(), paramsSize * sizeof(double), cudaMemcpyHostToDevice));
+    CHECK_CUDA_ERROR(cudaMemcpy(d_paramLinspaceA, paramLinspaceA.data(), histEntropySizeRow * sizeof(double), cudaMemcpyHostToDevice));
+    CHECK_CUDA_ERROR(cudaMemcpy(d_paramLinspaceB, paramLinspaceB.data(), histEntropySizeCol * sizeof(double), cudaMemcpyHostToDevice));
 
     int device = 0;
     cudaDeviceProp deviceProp;
-    cudaGetDeviceProperties(&deviceProp, device);
+    CHECK_CUDA_ERROR(cudaGetDeviceProperties(&deviceProp, device));
     
-    int threadsPerBlock = deviceProp.maxThreadsPerBlock;
-
-    int numBlocks = std::ceil((histEntropySize + threadsPerBlock - 1) / threadsPerBlock);
+    const int threadsPerBlock = deviceProp.maxThreadsPerBlock;
+    const int numBlocks = std::ceil((histEntropySize + threadsPerBlock - 1) / threadsPerBlock);
 
     std::cout<<"blocks: "<<numBlocks<<" threads: "<<threadsPerBlock<<"\n";
     
@@ -509,19 +535,22 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     double** bins;
     cudaMalloc(&bins, histEntropySize * sizeof(double*)); // только histEntropySize указателей
     cudaMemcpy(bins, hostBins, histEntropySize * sizeof(double*), cudaMemcpyHostToDevice);
-   
-    calculateHistEntropyCuda3D<<<numBlocks, threadsPerBlock>>>(d_X, d_XSize, d_params, d_paramsSize,
-                                            d_paramNumberA,d_paramNumberB, d_paramLinspaceA,d_paramLinspaceB,d_histEntropySizeRow,d_histEntropySizeCol, d_coord, d_tMax, d_transTime, d_h,
-                                            d_startBin, d_endBin, d_stepBin, d_histEntropy, d_histEntropySize,bins);
 
+    int progress = 0;
+    cudaMemcpyToSymbol(d_progress, &progress, sizeof(int));
+
+    calculateHistEntropyCuda3D<<<numBlocks, threadsPerBlock>>>(
+        d_X, d_params, d_paramLinspaceA, d_paramLinspaceB, d_histEntropy,bins);
+
+
+    //Cинхронизация
+    CHECK_CUDA_ERROR(cudaDeviceSynchronize());
     cudaError_t error = cudaGetLastError();
     if (error != cudaSuccess) {
         std::cerr << "CUDA error: " << cudaGetErrorString(error) << std::endl;
         throw std::runtime_error("CUDA kernel execution failed");
     }
     
-
-    cudaDeviceSynchronize();
     size_t freeMem, totalMem;
     cudaMemGetInfo(&freeMem, &totalMem);
     std::cout << "Free memory: " << freeMem / (1024 * 1024) << " MB\n";
@@ -542,28 +571,11 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     }
 
  
-
-    
     //--- Освобождение памяти ---
     cudaFree(d_X);
     cudaFree(d_params);
     cudaFree(d_paramLinspaceA);
     cudaFree(d_paramLinspaceB);
-    cudaFree(d_histEntropy);
-    cudaFree(d_XSize);
-    cudaFree(d_paramsSize);
-    cudaFree(d_paramNumberA);
-    cudaFree(d_paramNumberB);
-    cudaFree(d_coord);
-    cudaFree(d_tMax);
-    cudaFree(d_transTime);
-    cudaFree(d_h);
-    cudaFree(d_startBin);
-    cudaFree(d_endBin);
-    cudaFree(d_stepBin);
-    cudaFree(d_histEntropySize);
-    cudaFree(d_histEntropySizeRow);
-    cudaFree(d_histEntropySizeCol);
 
     for (int i = 0; i < histEntropySize; ++i) {
         cudaFree(hostBins[i]);

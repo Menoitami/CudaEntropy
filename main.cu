@@ -59,6 +59,10 @@ int main(int argc, char* argv[]) {
     std::vector<double> paramLinspaceB = linspace(linspaceStartB, linspaceEndB, linspaceNumB);
     int paramNumberB = 2;         // Индекс параметра для анализа
 
+
+
+    auto start = std::chrono::high_resolution_clock::now();
+
     //Вызов функции histEntropyCUDA3D
     std::vector<std::vector<double>> histEntropy3D = histEntropyCUDA3D(
                                         transTime, tMax, h,
@@ -80,6 +84,11 @@ int main(int argc, char* argv[]) {
     //                                 );
 
     // writeToCSV(histEntropy2D,linspaceNumA,inputString);
-    
+
+    auto stop = std::chrono::high_resolution_clock::now();
+
+    std::chrono::duration<double> duration = stop - start;
+    std::cout << "Program execution time: " << duration.count() << " seconds" << std::endl;
+
     return 0;
 }
