@@ -55,7 +55,7 @@ int main(int argc, char* argv[]) {
 
     double linspaceStartB = 0.1;  // Начало диапазона параметра
     double linspaceEndB = 0.2;   // Конец диапазона параметра
-    int linspaceNumB = 100;
+    int linspaceNumB = 400;
     std::vector<double> paramLinspaceB = linspace(linspaceStartB, linspaceEndB, linspaceNumB);
     int paramNumberB = 2;         // Индекс параметра для анализа
 
