@@ -23,7 +23,7 @@
 
 cmake_minimum_required(VERSION 3.20)  # Убедитесь, что версия CMake поддерживает CUDA
 project(MyCUDAProject LANGUAGES CXX CUDA)
-
+set(CMAKE_CUDA_ARCHITECTURES 60 70 80)
 # Укажите минимальную версию C++ и CUDA
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CUDA_STANDARD 17)

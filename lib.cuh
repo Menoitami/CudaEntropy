@@ -214,27 +214,35 @@ __global__ void calculateHistEntropyCuda3D(const double* const X,
                                            const double* const paramLinspaceB,
                                            double* histEntropy, 
                                            double** bins_global) {
+const int x_size =3;
+const int param_size = 4;
+const int threads_count = 512;
 
+    __shared__ double X_sh[x_size];
+    __shared__ double params_sh[param_size];
+    if(threadIdx.x==0){
+        memcpy(params_sh, params, param_size * sizeof(double));
+        memcpy(X_sh, X, x_size * sizeof(double));
+    }
+    __syncthreads();
+    
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
-
-    //printf("Accessing bins_global at idx: %d\n",d_histEntropySize);
-
+    
     if (idx < d_histEntropySize) {
 
         int row = idx/ d_histEntropySizeCol;
         int col = idx % d_histEntropySizeCol;
 
-        double* params_local = new double[d_paramsSize];
-        double* X_local = new double[d_XSize];
-
-
-        memcpy(params_local, params, d_paramsSize * sizeof(double));
-        memcpy(X_local, X, d_XSize * sizeof(double));
+        double X_locals[x_size];
+        double params_local[param_size];
+        
+        memcpy(params_local, params_sh, param_size * sizeof(double));
+        memcpy(X_locals, X_sh, x_size * sizeof(double));
 
         params_local[d_paramNumberA] = paramLinspaceA[row];
         params_local[d_paramNumberB] = paramLinspaceB[col];
 
-        loopCalculateDiscreteModel(X_local, params_local, d_h, 
+        loopCalculateDiscreteModel(X_locals, params_local, d_h, 
                                    static_cast<int>(d_transTime / d_h), 
                                    0, 0, 0, nullptr, 0, 0);
 
@@ -242,15 +250,13 @@ __global__ void calculateHistEntropyCuda3D(const double* const X,
         int sum = 0;
 
         CalculateHistogram(
-             X_local, params_local, sum, bins_global[idx]);
+             X_locals, params_local, sum, bins_global[idx]);
 
         double H = calculateEntropy(bins_global[idx], binSize, sum);
 
         // Нормализуем и сохраняем результат в глобальную память
         histEntropy[row * d_histEntropySizeCol + col] = (H / __log2f(binSize));
 
-        delete[] params_local;
-        delete[] X_local;
 
         // Вывод прогресса
         
@@ -513,7 +519,7 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     cudaDeviceProp deviceProp;
     CHECK_CUDA_ERROR(cudaGetDeviceProperties(&deviceProp, device));
 //Адаптивное колличество блоков 
-    const int maxThreadsPerBlock = 256;  // Максимальное количество потоков на блок
+    const int maxThreadsPerBlock = 512;  // Максимальное количество потоков на блок
     int numBlocks = deviceProp.multiProcessorCount * 4;  
     int threadsPerBlock = std::ceil(histEntropySize / (float)numBlocks); 
 

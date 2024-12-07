@@ -48,14 +48,14 @@ int main(int argc, char* argv[]) {
     // Параметры для linspace
     double linspaceStartA = 0.1;  // Начало диапазона параметра
     double linspaceEndA = 0.35;   // Конец диапазона параметра
-    int linspaceNumA = 400;       // Количество точек параметра
+    int linspaceNumA = 1000;       // Количество точек параметра
     std::vector<double> paramLinspaceA = linspace(linspaceStartA, linspaceEndA, linspaceNumA);
     int paramNumberA = 1;         // Индекс параметра для анализа
 
 
     double linspaceStartB = 0.1;  // Начало диапазона параметра
     double linspaceEndB = 0.2;   // Конец диапазона параметра
-    int linspaceNumB = 100;
+    int linspaceNumB = 1000;
     std::vector<double> paramLinspaceB = linspace(linspaceStartB, linspaceEndB, linspaceNumB);
     int paramNumberB = 2;         // Индекс параметра для анализа
 
