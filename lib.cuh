@@ -214,9 +214,8 @@ __global__ void calculateHistEntropyCuda3D(const double* const X,
                                            const double* const paramLinspaceB,
                                            double* histEntropy, 
                                            double** bins_global) {
-const int x_size =3;
-const int param_size = 4;
-const int threads_count = 512;
+const int x_size =100;
+const int param_size = 100;
 
     __shared__ double X_sh[x_size];
     __shared__ double params_sh[param_size];
