@@ -45,16 +45,16 @@ int main(int argc, char* argv[]) {
     double endBin = 20;    // Конец гистограммы
     double stepBin = 0.1;  // Шаг бинов гистограммы
 
-    // Параметры для linspace
+    // Параметры для linspaceNum
     double linspaceStartA = 0.1;  // Начало диапазона параметра
     double linspaceEndA = 0.35;   // Конец диапазона параметра
-    int linspaceNumA = 40000;       // Количество точек параметра
+    int linspaceNumA = 400;       // Количество точек параметра
     int paramNumberA = 1;         // Индекс параметра для анализа
 
 
     double linspaceStartB = 0.1;  // Начало диапазона параметра
-    double linspaceEndB = 0.2;   // Конец диапазона параметра
-    int linspaceNumB = 40000;
+    double linspaceEndB = 0.2;    // Конец диапазона параметра
+    int linspaceNumB = 400;      // Количество точек параметра
     int paramNumberB = 2;         // Индекс параметра для анализа
 
 
@@ -70,7 +70,12 @@ int main(int argc, char* argv[]) {
                                         linspaceStartA,linspaceEndA, linspaceNumA, linspaceStartB,linspaceEndB, linspaceNumB
                                     );
 
-    // writeToCSV(histEntropy3D,linspaceNumA,linspaceNumB,inputString);
+
+    std::cout<<"End of gpu part\n";
+
+    //std::cout<<histEntropy3D.size()<<"\n";
+
+    writeToCSV(histEntropy3D,linspaceNumA,linspaceNumB,inputString);
 
     // //Вызов функции histEntropyCUDA2D
     // // std::vector<double> histEntropy2D = histEntropyCUDA2D(

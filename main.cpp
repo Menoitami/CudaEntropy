@@ -9,7 +9,7 @@
 
 const double EPSD = std::numeric_limits<double>::epsilon();
 
-std::vector<double> linspace(double start, double end, int num) {
+std::vector<double> linspaceNum(double start, double end, int num) {
     std::vector<double> result;
 
     if (num<0) throw std::invalid_argument( "received negative number of points" );
@@ -144,7 +144,7 @@ int main() {
     double endEdge = 20;
     double stepEdge = 0.1;
 
-    std::vector<double> a_array = linspace(0.1, 0.35, 400);
+    std::vector<double> a_array = linspaceNum(0.1, 0.35, 400);
 
     std::vector<double> HistEntropy;
     HistEntropy.reserve(a_array.size());
