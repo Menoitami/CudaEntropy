@@ -48,15 +48,13 @@ int main(int argc, char* argv[]) {
     // Параметры для linspace
     double linspaceStartA = 0.1;  // Начало диапазона параметра
     double linspaceEndA = 0.35;   // Конец диапазона параметра
-    int linspaceNumA = 1000;       // Количество точек параметра
-    std::vector<double> paramLinspaceA = linspace(linspaceStartA, linspaceEndA, linspaceNumA);
+    int linspaceNumA = 40000;       // Количество точек параметра
     int paramNumberA = 1;         // Индекс параметра для анализа
 
 
     double linspaceStartB = 0.1;  // Начало диапазона параметра
     double linspaceEndB = 0.2;   // Конец диапазона параметра
-    int linspaceNumB = 1000;
-    std::vector<double> paramLinspaceB = linspace(linspaceStartB, linspaceEndB, linspaceNumB);
+    int linspaceNumB = 40000;
     int paramNumberB = 2;         // Индекс параметра для анализа
 
 
@@ -69,26 +67,26 @@ int main(int argc, char* argv[]) {
                                         X, coord,
                                         params, paramNumberA,paramNumberB,
                                         startBin, endBin, stepBin,
-                                        paramLinspaceA, paramLinspaceB
+                                        linspaceStartA,linspaceEndA, linspaceNumA, linspaceStartB,linspaceEndB, linspaceNumB
                                     );
 
-    writeToCSV(histEntropy3D,linspaceNumA,linspaceNumB,inputString);
+    // writeToCSV(histEntropy3D,linspaceNumA,linspaceNumB,inputString);
 
-    //Вызов функции histEntropyCUDA2D
-    // std::vector<double> histEntropy2D = histEntropyCUDA2D(
-    //                                     transTime, tMax, h,
-    //                                     X, coord,
-    //                                     params, paramNumberA,
-    //                                     startBin, endBin, stepBin,
-    //                                     paramLinspaceA
-    //                                 );
+    // //Вызов функции histEntropyCUDA2D
+    // // std::vector<double> histEntropy2D = histEntropyCUDA2D(
+    // //                                     transTime, tMax, h,
+    // //                                     X, coord,
+    // //                                     params, paramNumberA,
+    // //                                     startBin, endBin, stepBin,
+    // //                                     paramLinspaceA
+    // //                                 );
 
-    // writeToCSV(histEntropy2D,linspaceNumA,inputString);
+    // // writeToCSV(histEntropy2D,linspaceNumA,inputString);
 
-    auto stop = std::chrono::high_resolution_clock::now();
+    // auto stop = std::chrono::high_resolution_clock::now();
 
-    std::chrono::duration<double> duration = stop - start;
-    std::cout << "Program execution time: " << duration.count() << " seconds" << std::endl;
+    // std::chrono::duration<double> duration = stop - start;
+    // std::cout << "Program execution time: " << duration.count() << " seconds" << std::endl;
 
     return 0;
 }

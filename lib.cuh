@@ -455,7 +455,7 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     const std::vector<double>& X,const int coord, 
     const std::vector<double>& params,const int paramNumberA,const int paramNumberB, 
     const double startBin, const double endBin,const double stepBin, 
-    const std::vector<double>& paramLinspaceA,const std::vector<double>& paramLinspaceB
+    double linspaceStartA, double linspaceEndA, int linspaceNumA,double linspaceStartB, double linspaceEndB, int linspaceNumB
 )
  {
     
@@ -476,11 +476,36 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
 
     int XSize = X.size();
     int paramsSize = params.size();
-    int histEntropySizeRow = paramLinspaceA.size();
-    int histEntropySizeCol = paramLinspaceB.size();
+    int histEntropySizeRow = linspaceNumA;
+    int histEntropySizeCol =  linspaceNumB;
     int histEntropySize = histEntropySizeRow * histEntropySizeCol;
-    int binSize = static_cast<int>(ceil((endBin - startBin) / stepBin));
+    int binSize = static_cast<int>(std::ceil((endBin - startBin) / stepBin));
+
+    long long int bytes =(histEntropySize+ binSize*histEntropySize)* sizeof(double); // bytes
+
+    size_t freeMem, totalMem;
+
+	CHECK_CUDA_ERROR(cudaMemGetInfo(&freeMem, &totalMem));
+
+    freeMem*=0.7;
+
+    int iteratations = 1;
+    float partB = linspaceNumB;
+
+
+    std::cout<<"freeMem: "<<freeMem<<" Needed bytes: "<<bytes<<"\n";
+
+    while (((histEntropySizeRow*partB+ binSize*histEntropySizeRow*partB)* sizeof(double)) > freeMem ){
+
+        partB = std::ceil(partB/2);
+        iteratations*=2;
+
+    }
+
+    std::cout<<"iterations: "<<iteratations<<" B_size: "<<" "<<partB<<"\n";
+
     
+    /*
     CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_startBin, &startBin, sizeof(double)));
     CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_endBin, &endBin, sizeof(double)));
     CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_stepBin, &stepBin, sizeof(double)));
@@ -555,7 +580,7 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
         throw std::runtime_error("CUDA kernel execution failed");
     }
     
-    size_t freeMem, totalMem;
+    
     cudaMemGetInfo(&freeMem, &totalMem);
     std::cout << "Free memory: " << freeMem / (1024 * 1024) << " MB\n";
     std::cout << "Total memory: " << totalMem / (1024 * 1024) << " MB\n";
@@ -589,4 +614,5 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     free(hostBins);
 
     return histEntropy2D;
+    */
 }
