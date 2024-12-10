@@ -54,7 +54,7 @@ int main(int argc, char* argv[]) {
 
     double linspaceStartB = 0.1;  // Начало диапазона параметра
     double linspaceEndB = 0.2;    // Конец диапазона параметра
-    int linspaceNumB = 1;      // Количество точек параметра
+    int linspaceNumB = 10;      // Количество точек параметра
     int paramNumberB = 2;         // Индекс параметра для анализа
 
 

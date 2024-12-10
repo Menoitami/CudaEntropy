@@ -167,7 +167,7 @@ int main() {
         double H = calculateEntropy(bins);
         HistEntropy.push_back(H / std::log2(bins.size()));
     }
-
+    
     for (double num : HistEntropy) {
         std::cout << num << " ";
     }
