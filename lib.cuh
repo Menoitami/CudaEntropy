@@ -315,17 +315,17 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     int histEntropySize = histEntropySizeRow * histEntropySizeCol;
     int binSize = static_cast<int>(std::ceil((endBin - startBin) / stepBin));
     std::vector<double> paramLinspaceA = linspaceNum(linspaceStartA, linspaceEndA,linspaceNumA);
+    std::vector<double> paramLinspaceB = linspaceNum(linspaceStartB, linspaceEndB,linspaceNumB);
 
     size_t freeMem, totalMem;
 
 	CHECK_CUDA_ERROR(cudaMemGetInfo(&freeMem, &totalMem));
-    freeMem = 500*1024*1024;
     freeMem*=0.7; //bytes
 
     long long int bytes =(histEntropySize+ binSize*histEntropySize)* sizeof(double); // bytes
 
-    int iteratations = 1;
-    float memEnabledB = linspaceNumB;
+    int iterations = 1;
+    double memEnabledB = linspaceNumB;
 
 
     while (((histEntropySizeRow*memEnabledB+ binSize*histEntropySizeRow*memEnabledB)* sizeof(double)) > freeMem ){
@@ -337,14 +337,14 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
             }
 
         memEnabledB =std::ceil(memEnabledB/2);
-        iteratations*=2;
+        iterations*=2;
 
     }
     memEnabledB =std::ceil(memEnabledB);
 
 
     std::cout<<"freeMem: "<<freeMem/1024/1024<<"MB Needed Mbytes: "<<bytes/1024/1024<<"MB\n";
-    std::cout<<"iterations: "<<iteratations<<" B_size: "<<" "<<memEnabledB<<"\n";
+    std::cout<<"iterations: "<<iterations<<" B_size: "<<" "<<memEnabledB<<"\n";
 
      // --- Выделение памяти на устройстве ---
     double *d_X, *d_params, *d_paramLinspaceA;
@@ -374,39 +374,40 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
 
     std::vector<std::vector<double>> histEntropy2DFinal;
     histEntropy2DFinal.reserve(histEntropySizeCol);
+    int SizeCol;
+    double remaining;
+    double currentStepB;
 
-    double stepB;
-    if (linspaceNumB!=1)stepB = (linspaceEndB - linspaceStartB) / (static_cast<double>(linspaceNumB));
-    else stepB = linspaceEndB - linspaceStartB+1;
-    double startB = linspaceStartB - memEnabledB*stepB-stepB;
-    double endB;
+    double processedB = 0;
 
-    for (int i = 0 ; i<iteratations;++i){
+    for (int i = 0 ; i<iterations;++i){
 
-        startB = startB+ memEnabledB*stepB+stepB;
-        endB = startB +memEnabledB*stepB<linspaceEndB ?startB +memEnabledB*stepB : linspaceEndB;
+        remaining = histEntropySizeCol - processedB;
+        currentStepB = std::min(memEnabledB, remaining);
 
-        std::vector<double> paramlinspaceB = linspaceStep(startB, endB, stepB);
-        
-        //std::cout << std::fixed << std::setprecision(16);
-        std::cout<<startB<<" "<<endB<<"\n";
-        std::cout<<stepB<<" "<<paramlinspaceB[0]<<" "<<paramlinspaceB.back()<<"\n";
 
-        histEntropySizeCol = paramlinspaceB.size();
-        std::cout<<histEntropySizeCol<<"\n";
-        histEntropySize = histEntropySizeRow * histEntropySizeCol;
+        std::vector<double> partParamLinspaceB(currentStepB);
 
+        std::copy(
+            paramLinspaceB.begin() + processedB,
+            paramLinspaceB.begin() + processedB + currentStepB,
+            partParamLinspaceB.begin()
+        );
+
+        processedB += currentStepB;
+        SizeCol = partParamLinspaceB.size();
+        histEntropySize = histEntropySizeRow * SizeCol;
         std::vector<double> histEntropy(histEntropySize);
 
         double *d_paramLinspaceB, *d_histEntropy;
 
-        CHECK_CUDA_ERROR(cudaMalloc(&d_paramLinspaceB, histEntropySizeCol * sizeof(double)));
+        CHECK_CUDA_ERROR(cudaMalloc(&d_paramLinspaceB, SizeCol * sizeof(double)));
         CHECK_CUDA_ERROR(cudaMalloc(&d_histEntropy, histEntropySize * sizeof(double)));
 
         CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_histEntropySize, &histEntropySize, sizeof(int)));
-        CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_histEntropySizeCol, &histEntropySizeCol, sizeof(int)));
+        CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_histEntropySizeCol, &SizeCol, sizeof(int)));
 
-        CHECK_CUDA_ERROR(cudaMemcpy(d_paramLinspaceB, paramlinspaceB.data(), histEntropySizeCol * sizeof(double),cudaMemcpyHostToDevice));
+        CHECK_CUDA_ERROR(cudaMemcpy(d_paramLinspaceB, partParamLinspaceB.data(), SizeCol * sizeof(double),cudaMemcpyHostToDevice));
 
         double** hostBins = (double**)malloc(histEntropySize * sizeof(double*));
         for (int i = 0; i < histEntropySize; ++i) {
@@ -444,12 +445,13 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
 
         cudaMemcpy(histEntropy.data(), d_histEntropy, histEntropySize * sizeof(double), cudaMemcpyDeviceToHost);
 
-        std::vector<std::vector<double>> histEntropy2D(histEntropySizeCol, std::vector<double>(histEntropySizeRow));
+
+        std::vector<std::vector<double>> histEntropy2D(SizeCol, std::vector<double>(histEntropySizeRow));
 
         for (int i = 0; i < histEntropySizeRow; ++i) {
-            for (int j = 0; j < histEntropySizeCol; ++j) {
+            for (int j = 0; j < SizeCol; ++j) {
 
-                histEntropy2D[j][i] = std::move(histEntropy[i * histEntropySizeCol + j]);
+                histEntropy2D[j][i] = std::move(histEntropy[i * SizeCol + j]);
             }
         }
 
