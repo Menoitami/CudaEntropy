@@ -327,7 +327,13 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
 
     while (((histEntropySizeRow*memEnabledB+ binSize*histEntropySizeRow*memEnabledB)* sizeof(double)) > freeMem ){
 
-        memEnabledB /=2;
+        if (memEnabledB==1) {
+            
+            std::cout<<"maybe it will crash!!!!!\n";
+            break;
+        }
+
+        memEnabledB =std::ceil(memEnabledB/2);
         iteratations*=2;
 
     }
