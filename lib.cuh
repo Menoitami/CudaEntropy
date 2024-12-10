@@ -3,6 +3,7 @@
 #include <iostream>
 #include <vector>
 #include <stdexcept>
+#include <iomanip>
 #include <cuda_runtime.h>
 #include <fstream>
 #include <string>
@@ -63,11 +64,12 @@ __host__ std::vector<double> linspaceNum(double start, double end, int num) {
 
 __host__ std::vector<double> linspaceStep(double start, double end, double step) {
     std::vector<double> result;
+    double epsilon = step * 1e-4;
 
     if (step <= 0) throw std::invalid_argument("Step must be positive");
     if (start > end) throw std::invalid_argument("Start must be less than or equal to end");
 
-    for (double value = start; value < end; value += step) {
+    for (double value = start; value <= end+epsilon; value += step) {
         result.push_back(value);
     }
 
@@ -277,7 +279,7 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     const std::vector<double>& X,const int coord, 
     const std::vector<double>& params,const int paramNumberA,const int paramNumberB, 
     const double startBin, const double endBin,const double stepBin, 
-    double linspaceStartA, double linspaceEndA, int linspaceNumA,double linspaceStartB, double linspaceEndB, int linspaceNumB
+    double linspaceStartA, double linspaceEndA, double linspaceNumA,double linspaceStartB, double linspaceEndB, double linspaceNumB
 )
  {
     
@@ -317,6 +319,7 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     size_t freeMem, totalMem;
 
 	CHECK_CUDA_ERROR(cudaMemGetInfo(&freeMem, &totalMem));
+    freeMem = 500*1024*1024;
     freeMem*=0.7; //bytes
 
     long long int bytes =(histEntropySize+ binSize*histEntropySize)* sizeof(double); // bytes
@@ -329,9 +332,9 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
 
         if (memEnabledB==1) {
             
-            std::cout<<"maybe it will crash!!!!!\n";
+            std::cout<<"maybe it will crash\n";
             break;
-        }
+            }
 
         memEnabledB =std::ceil(memEnabledB/2);
         iteratations*=2;
@@ -375,17 +378,22 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     double stepB;
     if (linspaceNumB!=1)stepB = (linspaceEndB - linspaceStartB) / (static_cast<double>(linspaceNumB));
     else stepB = linspaceEndB - linspaceStartB+1;
-    double startB = linspaceStartB - memEnabledB*stepB;
+    double startB = linspaceStartB - memEnabledB*stepB-stepB;
     double endB;
 
     for (int i = 0 ; i<iteratations;++i){
 
-        startB = startB+ memEnabledB*stepB;
+        startB = startB+ memEnabledB*stepB+stepB;
         endB = startB +memEnabledB*stepB<linspaceEndB ?startB +memEnabledB*stepB : linspaceEndB;
 
         std::vector<double> paramlinspaceB = linspaceStep(startB, endB, stepB);
+        
+        //std::cout << std::fixed << std::setprecision(16);
+        std::cout<<startB<<" "<<endB<<"\n";
+        std::cout<<stepB<<" "<<paramlinspaceB[0]<<" "<<paramlinspaceB.back()<<"\n";
 
         histEntropySizeCol = paramlinspaceB.size();
+        std::cout<<histEntropySizeCol<<"\n";
         histEntropySize = histEntropySizeRow * histEntropySizeCol;
 
         std::vector<double> histEntropy(histEntropySize);
