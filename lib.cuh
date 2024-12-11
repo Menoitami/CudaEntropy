@@ -195,8 +195,8 @@ __global__ void calculateHistEntropyCuda3D(const double* const X,
                                            const double* const paramLinspaceB,
                                            double* histEntropy, 
                                            double** bins_global) {
-const int x_size =3;
-const int param_size = 4;
+    const int x_size =10;
+    const int param_size =10;
 
     __shared__ double X_sh[x_size];
     __shared__ double params_sh[param_size];
@@ -304,7 +304,7 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     int threadsPerBlock;
 
     CHECK_CUDA_ERROR(cudaGetDeviceProperties(&deviceProp, device));
-    int maxThreadsPerBlock = deviceProp.maxThreadsPerBlock;
+    int maxThreadsPerBlock = deviceProp.maxThreadsPerBlock/2;
 
     int XSize = X.size();
     int paramsSize = params.size();
@@ -342,8 +342,7 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
 
     size_t freeMem, totalMem;
 
-	CHECK_CUDA_ERROR(cudaMemGetInfo(&freeMem, &totalMem));
-    freeMem = 10 * 1024 * 1024; // < ---------------------------------
+	CHECK_CUDA_ERROR(cudaMemGetInfo(&freeMem, &totalMem)); 
     freeMem*=0.7; //bytes
 
 
@@ -442,8 +441,8 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
             CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_histEntropySizeRow, &SizeRow, sizeof(int)));
 
             double** hostBins = (double**)malloc(histEntropySize * sizeof(double*));
-            for (int i = 0; i < histEntropySize; ++i) {
-                cudaMalloc(&hostBins[i], binSize * sizeof(double)); // выделяем для binSize
+            for (int k = 0; k < histEntropySize; ++i) {
+                cudaMalloc(&hostBins[k], binSize * sizeof(double)); // выделяем для binSize
             }
 
             double** bins;
@@ -485,17 +484,17 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
                 histEntropyRowFinal.insert(histEntropyRowFinal.end(), histEntropy.begin(), histEntropy.end()); 
             }
             else{
-                for (int i = 0; i < SizeRow; ++i) {
-                    for (int j = 0; j < SizeCol; ++j) {
-                        histEntropy2D[j][i] = std::move(histEntropy[i * SizeCol + j]);
+                for (int q = 0; q < SizeRow; ++q) {
+                    for (int s = 0; s < SizeCol; ++s) {
+                        histEntropy2D[s][q] = std::move(histEntropy[q * SizeCol + s]);
                     }
                 }
-                for (int j = 0; j < SizeCol; ++j) {
+                for (int s = 0; s < SizeCol; ++s) {
                     histEntropy2DFinal.push_back(histEntropy2D[j]);
                 }
             }
-            for (int i = 0; i < histEntropySize; ++i) {
-                cudaFree(hostBins[i]);
+            for (int q = 0; q < histEntropySize; ++q) {
+                cudaFree(hostBins[q]);
             }
             cudaFree(bins);
             free(hostBins);
@@ -505,18 +504,10 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
         if (memEnabledB == 1){
             histEntropy2DFinal.push_back(histEntropyRowFinal);
         }
-        std::cout << histEntropyRowFinal.size()<< "\n";
         cudaFree(d_paramLinspaceB);
 
     }
 
-
-    // cudaMemGetInfo(&freeMem, &totalMem);
-    // std::cout << "Free memory: " << freeMem / (1024 * 1024) << " MB\n";
-    // std::cout << "Total memory: " << totalMem / (1024 * 1024) << " MB\n";
-    // std::cout << "Total constant memory: " << deviceProp.totalConstMem / (1024 ) << " kB\n";
-
- 
     //--- Освобождение памяти ---
     cudaFree(d_X);
     cudaFree(d_params);
@@ -527,74 +518,18 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
 }
 
 
-
-__global__ void calculateHistEntropyCuda2D(const double* const X, 
-                                           const double* const params,
-                                           const double* const paramLinspaceA,
-                                           double* histEntropy, 
-                                           double** bins_global) {
-const int x_size =3;
-const int param_size = 4;
-
-    __shared__ double X_sh[x_size];
-    __shared__ double params_sh[param_size];
-    if(threadIdx.x==0){
-        memcpy(params_sh, params, param_size * sizeof(double));
-        memcpy(X_sh, X, x_size * sizeof(double));
-    }
-    __syncthreads();
-    
-    int idx = threadIdx.x + blockIdx.x * blockDim.x;
-    
-    if (idx < d_histEntropySize) {
-
-
-        double X_locals[x_size];
-        double params_local[param_size];
-        
-        memcpy(params_local, params_sh, param_size * sizeof(double));
-        memcpy(X_locals, X_sh, x_size * sizeof(double));
-
-        params_local[d_paramNumberA] = paramLinspaceA[idx];
-
-        loopCalculateDiscreteModel(X_locals, params_local, d_h, 
-                                   static_cast<int>(d_transTime / d_h), 
-                                   0, 0, 0, nullptr, 0, 0);
-
-        int binSize = static_cast<int>(ceil((d_endBin - d_startBin) / d_stepBin));
-        int sum = 0;
-
-        CalculateHistogram(
-             X_locals, params_local, sum, bins_global[idx]);
-
-        double H = calculateEntropy(bins_global[idx], binSize, sum);
-
-        // Нормализуем и сохраняем результат в глобальную память
-        histEntropy[idx] = (H / __log2f(binSize));
-
-
-        // Вывод прогресса
-        
-        int progress = atomicAdd(&d_progress, 1);
-        if ((progress + 1) % (d_histEntropySize / 10) == 0) {
-            printf("Progress: %d%%\n", ((progress + 1) * 100) / d_histEntropySize);
-        }
-        
-
-    }
-}
-
-
 __host__ std::vector<double> histEntropyCUDA2D(
     const double transTime,const double tMax,const double h, 
     const std::vector<double>& X,const int coord, 
-    const std::vector<double>& params,const int paramNumberA,
+    std::vector<double>& params,const int paramNumberA,
     const double startBin, const double endBin,const double stepBin, 
     double linspaceStartA, double linspaceEndA, int linspaceNumA
 )
  {
 
-    int paramNumberB = 2;
+    params.push_back(0);
+
+    int paramNumberB = params.size()-1;
     double linspaceStartB = params[paramNumberB];
     double linspaceEndB = linspaceStartB;
     double linspaceNumB = 1;
