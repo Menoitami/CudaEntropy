@@ -48,13 +48,13 @@ int main(int argc, char* argv[]) {
     // Параметры для linspaceNum
     double linspaceStartA = 0.1;  // Начало диапазона параметра
     double linspaceEndA = 0.35;   // Конец диапазона параметра
-    int linspaceNumA = 4000;       // Количество точек параметра
+    int linspaceNumA = 160000;       // Количество точек параметра
     int paramNumberA = 1;         // Индекс параметра для анализа
 
 
     double linspaceStartB = 0.1;  // Начало диапазона параметра
     double linspaceEndB = 0.2;    // Конец диапазона параметра
-    int linspaceNumB = 10;      // Количество точек параметра
+    int linspaceNumB = 1;      // Количество точек параметра
     int paramNumberB = 2;         // Индекс параметра для анализа
 
 
@@ -62,33 +62,30 @@ int main(int argc, char* argv[]) {
     auto start = std::chrono::high_resolution_clock::now();
 
     //Вызов функции histEntropyCUDA3D
-    // std::vector<std::vector<double>> histEntropy3D = histEntropyCUDA3D(
-    //                                     transTime, tMax, h,
-    //                                     X, coord,
-    //                                     params, paramNumberA,paramNumberB,
-    //                                     startBin, endBin, stepBin,
-    //                                     linspaceStartA,linspaceEndA, linspaceNumA, linspaceStartB,linspaceEndB, linspaceNumB
-    //                                 );
-
-
-    std::cout<<"End of gpu part\n";
-
-
-    //writeToCSV(histEntropy3D,linspaceNumA,linspaceNumB,inputString);
-
-    std::vector<double> histEntropy2D = histEntropyCUDA2D(
+    std::vector<std::vector<double>> histEntropy3D = histEntropyCUDA3D(
                                         transTime, tMax, h,
                                         X, coord,
-                                        params, paramNumberA,
+                                        params, paramNumberA,paramNumberB,
                                         startBin, endBin, stepBin,
-                                        linspaceStartA,linspaceEndA, linspaceNumA
+                                        linspaceStartA,linspaceEndA, linspaceNumA, linspaceStartB,linspaceEndB, linspaceNumB
                                     );
 
-    writeToCSV(histEntropy2D,linspaceNumA,inputString);
+    writeToCSV(histEntropy3D,linspaceNumA,linspaceNumB,inputString);
+
+    // std::vector<double> histEntropy2D = histEntropyCUDA2D(
+    //                                     transTime, tMax, h,
+    //                                     X, coord,
+    //                                     params, paramNumberA,
+    //                                     startBin, endBin, stepBin,
+    //                                     linspaceStartA,linspaceEndA, linspaceNumA
+    //                                 );
+
+    // writeToCSV(histEntropy2D,linspaceNumA,inputString);
 
 
     // Как должен выбираться парметр для 2д энтропии. (а или б)
 
+    std::cout<<"End of gpu part\n";
 
 
     // auto stop = std::chrono::high_resolution_clock::now();
