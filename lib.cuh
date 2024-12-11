@@ -153,20 +153,14 @@ __device__ __host__ bool loopCalculateDiscreteModel(double* x, const double* val
 
 __device__  double calculateEntropy(double* bins, int binSize, const int sum) {
     double entropy = 0.0;
-    double normFactor = sum + EPSD;
 
     for (int i = 0; i < binSize; ++i) {
         if (bins[i] > 0) {
-            // Атомарно обновляем значение в bins[i]
-            double oldValue = atomicExchDouble(&bins[i], bins[i] / normFactor);
-
-            // Используем старое значение для вычисления энтропии
-            double normalizedBin = oldValue / normFactor;
-            if (normalizedBin > EPSD) {
-                entropy -= normalizedBin * log2(normalizedBin);
-            }
+            bins[i] = (bins[i] / (sum + EPSD));
+            entropy -= (bins[i] - EPSD) * log2(bins[i]); 
         }
     }
+
     return entropy;
 }
 
@@ -183,10 +177,6 @@ __device__ void CalculateHistogram(
 
     int binSize = static_cast<int>(ceil((d_endBin - d_startBin) / d_stepBin));
 
-    for (int i = 0; i < binSize; ++i) {
-        atomicExchDouble(&bins[i], 0);
-    }
-
 
     for (int i = 0; i < iterations; ++i) {
         calculateDiscreteModel(X, param, d_h);
@@ -197,8 +187,8 @@ __device__ void CalculateHistogram(
             if (last >= d_startBin && last < d_endBin) {
                 
                 int index = static_cast<int>((last - d_startBin) / d_stepBin);
-                if (i < binSize){
-                atomicAdd(&bins[i], 1);
+                if (index < binSize && index >=0){
+                bins[index]++;
                 }
                 sum++;
                 
