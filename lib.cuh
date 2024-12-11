@@ -189,70 +189,64 @@ __device__ void CalculateHistogram(
 }
 
 
-__global__ void calculateHistEntropyCuda3D(const double* const X, 
-                                           const double* const params,
-                                           const double* const paramLinspaceA,
-                                           const double* const paramLinspaceB,
+__global__ void calculateHistEntropyCuda3D(const double* X, 
+                                           const double* params,
+                                           const double* paramLinspaceA,
+                                           const double* paramLinspaceB,
                                            double* histEntropy, 
                                            double** bins_global) {
-
     extern __shared__ double shared_mem[];
 
+    // Shared memory allocation
     double* X_sh = shared_mem;
-    double* params_sh= &shared_mem[d_XSize];
+    double* params_sh = &shared_mem[d_XSize];
 
-
-    if (threadIdx.x == 0) {
-        memcpy(X_sh, X, d_XSize * sizeof(double));
-        memcpy(params_sh, params, d_paramsSize * sizeof(double));
+    // Load global memory to shared memory
+    for (int i = threadIdx.x; i < d_XSize; i += blockDim.x) {
+        X_sh[i] = X[i];
     }
+    for (int i = threadIdx.x; i < d_paramsSize; i += blockDim.x) {
+        params_sh[i] = params[i];
+    }
+    
     __syncthreads();
-    
+
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
-    
-    if (idx < d_histEntropySize) {
+    if (idx >= d_histEntropySize) return;
 
-        int row = idx/ d_histEntropySizeCol;
-        int col = idx % d_histEntropySizeCol;
+    // Compute row and column indices
+    int row = idx / d_histEntropySizeCol;
+    int col = idx % d_histEntropySizeCol;
 
-        double* X_locals = new double[d_XSize];
-        double* params_local = new double[d_paramsSize];
-        
-        memcpy(params_local, params_sh, d_paramsSize * sizeof(double));
-        memcpy(X_locals, X_sh, d_XSize * sizeof(double));
+    // Local variables for computation
+    double X_locals[32];
+    double params_local[32];
 
-        params_local[d_paramNumberA] = paramLinspaceA[row];
-        params_local[d_paramNumberB] = paramLinspaceB[col];
+    memcpy(X_locals, X_sh, d_XSize * sizeof(double));
+    memcpy(params_local, params_sh, d_paramsSize * sizeof(double));
 
-        loopCalculateDiscreteModel(X_locals, params_local, d_h, 
-                                   static_cast<int>(d_transTime / d_h), 
-                                   0, 0, 0, nullptr, 0, 0);
+    params_local[d_paramNumberA] = paramLinspaceA[row];
+    params_local[d_paramNumberB] = paramLinspaceB[col];
 
-        int binSize = static_cast<int>(ceil((d_endBin - d_startBin) / d_stepBin));
-        int sum = 0;
+    // Perform calculations
+    loopCalculateDiscreteModel(X_locals, params_local, d_h, 
+                               static_cast<int>(d_transTime / d_h), 
+                               0, 0, 0, nullptr, 0, 0);
 
-        CalculateHistogram(
-             X_locals, params_local, sum, bins_global[idx]);
+    int binSize = static_cast<int>(ceil((d_endBin - d_startBin) / d_stepBin));
+    int sum = 0;
 
-        double H = calculateEntropy(bins_global[idx], binSize, sum);
+    CalculateHistogram(X_locals, params_local, sum, bins_global[idx]);
+    double H = calculateEntropy(bins_global[idx], binSize, sum);
 
-        // Нормализуем и сохраняем результат в глобальную память
-        histEntropy[row * d_histEntropySizeCol + col] = (H / __log2f(binSize));
+    // Normalize and store result
+    histEntropy[row * d_histEntropySizeCol + col] = (H / __log2f(binSize));
 
-
-        // Вывод прогресса
-        
-        int progress = atomicAdd(&d_progress, 1);
-        if ((progress + 1) % (d_histEntropySize / 10) == 0) {
-            printf("Progress: %d%%\n", ((progress + 1) * 100) / d_histEntropySize);
-        }
-
-        delete[] X_locals;
-        delete[] params_local;
-
+    // Atomic progress update (optional)
+    if ((atomicAdd(&d_progress, 1) + 1) % (d_histEntropySize / 10) == 0) {
+        printf("Progress: %d%%\n", ((d_progress + 1) * 100) / d_histEntropySize);
     }
 }
-
 
 /*   Рассчет гистограмной энтропии по одному параметру
      transTime  - Время переходного процесса
@@ -340,6 +334,8 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_coord, &coord, sizeof(int)));
     CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_XSize, &XSize, sizeof(int)));
     CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_paramsSize, &paramsSize, sizeof(int)));
+
+    std::cout<<XSize<<" "<<paramsSize<<"\n";
     
     CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_paramNumberA, &paramNumberA, sizeof(int)));
     CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_paramNumberB, &paramNumberB, sizeof(int)));
@@ -347,11 +343,10 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     size_t freeMem, totalMem;
 
 	CHECK_CUDA_ERROR(cudaMemGetInfo(&freeMem, &totalMem));
-    freeMem*=0.7; //bytes
+    freeMem*=0.7/1024/1024; //bytes
 
 
-
-    long long int bytes =(histEntropySize+ binSize*histEntropySize)* sizeof(double); // bytes
+    double bytes = static_cast<double>(histEntropySize)*sizeof(double)/(1024 * 1024)+static_cast<double>(histEntropySize)*static_cast<double>(binSize)*sizeof(double)/(1024 * 1024);
     
     int iteratationsB = 1;
     int iteratationsA = 1;
@@ -359,7 +354,7 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     double memEnabledB = linspaceNumB;
     double memEnabledA = linspaceNumA;
 
-    while (((memEnabledA*std::ceil(memEnabledB)+ binSize*memEnabledA*std::ceil(memEnabledB))* sizeof(double)) > freeMem ){
+    while ((((memEnabledA*std::ceil(memEnabledB)+ static_cast<double>(binSize)*memEnabledA*std::ceil(memEnabledB))* sizeof(double)))/(1024*1024) > freeMem ){
         if (std::ceil(memEnabledB) <= 1){
             memEnabledA /=2;
             iteratationsA*=2;
@@ -370,12 +365,10 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
         }
     }
 
-
-
     memEnabledA =std::ceil(memEnabledA);
     memEnabledB =std::ceil(memEnabledB);
 
-    std::cout<<"freeMem: "<<freeMem/1024/1024<<"MB Needed Mbytes: "<<bytes/1024/1024<<"MB\n";
+    std::cout<<"freeMem: "<<freeMem<<"MB Needed Mbytes: "<<bytes<<"MB\n";
     std::cout<<"iterationsB: "<<iteratationsB<<" B_size: "<<" "<<memEnabledB<<"\n";
     std::cout<<"iterationsA: "<<iteratationsA<<" A_size: "<<" "<<memEnabledA<<"\n";
 
@@ -470,7 +463,7 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
             int progress = 0;
             cudaMemcpyToSymbol(d_progress, &progress, sizeof(int));
 
-            calculateHistEntropyCuda3D<<<numBlocks, threadsPerBlock, (XSize+paramsSize)*sizeof(double)>>>(
+            calculateHistEntropyCuda3D<<<numBlocks, threadsPerBlock, (XSize+paramsSize)*sizeof(double)*2>>>(
             d_X, d_params, d_paramLinspaceA, d_paramLinspaceB, d_histEntropy,bins);
 
             CHECK_CUDA_ERROR(cudaDeviceSynchronize());
@@ -522,7 +515,6 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     //--- Освобождение памяти ---
     cudaFree(d_X);
     cudaFree(d_params);
-    cudaFree(d_paramLinspaceA);
 
 
     return histEntropy2DFinal;

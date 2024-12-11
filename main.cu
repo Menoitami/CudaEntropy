@@ -48,16 +48,14 @@ int main(int argc, char* argv[]) {
     // Параметры для linspaceNum
     double linspaceStartA = 0.1;  // Начало диапазона параметра
     double linspaceEndA = 0.35;   // Конец диапазона параметра
-    int linspaceNumA = 160000;       // Количество точек параметра
+    int linspaceNumA = 16000;       // Количество точек параметра
     int paramNumberA = 1;         // Индекс параметра для анализа
 
 
     double linspaceStartB = 0.1;  // Начало диапазона параметра
     double linspaceEndB = 0.2;    // Конец диапазона параметра
-    int linspaceNumB = 1;      // Количество точек параметра
+    int linspaceNumB = 400;      // Количество точек параметра
     int paramNumberB = 2;         // Индекс параметра для анализа
-
-
 
     auto start = std::chrono::high_resolution_clock::now();
 
