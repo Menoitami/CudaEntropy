@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
     // Параметры для linspaceNum
     double linspaceStartA = 0.1;  // Начало диапазона параметра
     double linspaceEndA = 0.35;   // Конец диапазона параметра
-    int linspaceNumA = 16000;       // Количество точек параметра
+    int linspaceNumA = 400;       // Количество точек параметра
     int paramNumberA = 1;         // Индекс параметра для анализа
 
 
@@ -86,10 +86,10 @@ int main(int argc, char* argv[]) {
     std::cout<<"End of gpu part\n";
 
 
-    // auto stop = std::chrono::high_resolution_clock::now();
+     auto stop = std::chrono::high_resolution_clock::now();
 
-    // std::chrono::duration<double> duration = stop - start;
-    // std::cout << "Program execution time: " << duration.count() << " seconds" << std::endl;
+     std::chrono::duration<double> duration = stop - start;
+     std::cout << "Program execution time: " << duration.count() << " seconds" << std::endl;
 
     return 0;
 }
