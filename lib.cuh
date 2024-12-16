@@ -121,14 +121,15 @@ __device__ __host__ void calculateDiscreteModel(double* x, const double* a, cons
     double h2 = 0.5 * h - a[0];
 
     
-    x[0] += h1 * (-x[1] - x[2]);
-    x[1] += h1 * (x[0] + a[1] * x[1]);
-    x[2] += h1 * (a[2] + x[2] * (x[0] - a[3]));
+    x[0] += h1 *x[1];
+    x[1] += h1*x[2];
+    x[2] += h1*(x[1]-a[1]*x[2]*x[3]);
+    x[3] += h1 * (a[2]*x[0]*x[2] - x[1]*x[1] + x[2] * x[2]);
 
-    x[2] = (x[2] + h2 * a[2]) / (1 - h2 * (x[0] - a[3]));
-    x[1] = (x[1] + h2 * x[0]) / (1 - h2 * a[1]);
-    x[0] += h2 * (-x[1] - x[2]);
-
+    x[3] += h2*(a[2]*x[0]*x[2]-x[1]*x[1] + x[2]*x[2]);
+    x[2] = (x[2] + h2* x[1] * x[3])/(1+a[1]*h2*x[3]);
+    x[1] += h2*x[2];
+    x[0] += h2 * x[1];
 }
 
 __device__ __host__ bool loopCalculateDiscreteModel(double* x, const double* values, const double h,
@@ -609,3 +610,5 @@ __host__ std::vector<double> histEntropyCUDA2D(
 
     return histEntropy3D[0];
 }
+
+

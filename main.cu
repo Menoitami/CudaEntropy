@@ -35,26 +35,26 @@ int main(int argc, char* argv[]) {
     double tMax = 2000;       // Время моделирования после TT
     double h = 0.01;          // Шаг интегрирования
 
-    std::vector<double> X = {0.1, 0.1, 0}; // Начальное состояние
+    std::vector<double> X = {-37.0, 1.0, -1.0,1.0}; // Начальное состояние
     int coord = 0;                        // Координата для анализа
 
-    std::vector<double> params = {0, 0.2, 0.2, 5.7}; // Параметры модели
+    std::vector<double> params = {0, 0.1, 4}; // Параметры модели
     
 
-    double startBin = -20; // Начало гистограммы
-    double endBin = 20;    // Конец гистограммы
+    double startBin = -40; // Начало гистограммы
+    double endBin = 40;    // Конец гистограммы
     double stepBin = 0.1;  // Шаг бинов гистограммы
 
-    // Параметры для linspaceNum
-    double linspaceStartA = 0.1;  // Начало диапазона параметра
-    double linspaceEndA = 0.35;   // Конец диапазона параметра
-    int linspaceNumA = 400;       // Количество точек параметра
+    // Параметры для linspace
+    double linspaceStartA = 3.5;  // Начало диапазона параметра
+    double linspaceEndA = 5;   // Конец диапазона параметра
+    int linspaceNumA = 200;       // Количество точек параметра
     int paramNumberA = 1;         // Индекс параметра для анализа
 
 
-    double linspaceStartB = 0.1;  // Начало диапазона параметра
-    double linspaceEndB = 0.2;    // Конец диапазона параметра
-    int linspaceNumB = 400;      // Количество точек параметра
+    double linspaceStartB = 0;  // Начало диапазона параметра
+    double linspaceEndB = 0.25;   // Конец диапазона параметра
+    int linspaceNumB = 200;
     int paramNumberB = 2;         // Индекс параметра для анализа
 
     auto start = std::chrono::high_resolution_clock::now();
@@ -81,7 +81,6 @@ int main(int argc, char* argv[]) {
     // writeToCSV(histEntropy2D,linspaceNumA,inputString);
 
 
-    // Как должен выбираться парметр для 2д энтропии. (а или б)
 
     std::cout<<"End of gpu part\n";
 
