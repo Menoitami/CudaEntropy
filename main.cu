@@ -85,10 +85,10 @@ int main(int argc, char* argv[]) {
     std::cout<<"End of gpu part\n";
 
 
-     auto stop = std::chrono::high_resolution_clock::now();
+    auto stop = std::chrono::high_resolution_clock::now();
 
-     std::chrono::duration<double> duration = stop - start;
-     std::cout << "Program execution time: " << duration.count() << " seconds" << std::endl;
+    std::chrono::duration<double> duration = stop - start;
+    std::cout << "Program execution time: " << duration.count() << " seconds" << std::endl;
 
     return 0;
 }
