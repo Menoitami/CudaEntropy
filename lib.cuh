@@ -711,4 +711,8 @@ Nsight указал, что теоретически возможно ускор
 The 8.00 theoretical warps per scheduler this kernel can issue according to its occupancy are below the hardware maximum of 12.
 This kernel's theoretical occupancy (66.7%) is limited by the number of required registers.
 
+Все что нужно менять в этом файле это систему, а так же строки 338 и 339. В этих строках выделяется статический массив для локальных данных потоку,
+размер этих массивов влияет на быстродействие программы, сейчас стоит с запасом по 32, но если будут системы больше, то придется изменить вручную.
+Динамический массив создавать не вариант, замедляет примерно в 5 раз.
+
 */
