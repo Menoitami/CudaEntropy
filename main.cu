@@ -32,29 +32,29 @@ int main(int argc, char* argv[]) {
    
     // Задаем параметры для расчета
     double transTime = 1000;  // Время переходного процесса
-    double tMax = 2000;       // Время моделирования после TT
+    double tMax = 200;       // Время моделирования после TT
     double h = 0.01;          // Шаг интегрирования
 
-    std::vector<double> X = {-37.0, 1.0, -1.0,1.0}; // Начальное состояние
+    std::vector<double> X = {37.0, -1.0, 1.0,-1.0}; // Начальное состояние
     int coord = 0;                        // Координата для анализа
 
     std::vector<double> params = {0, 0.1, 4}; // Параметры модели
     
 
-    double startBin = -40; // Начало гистограммы
-    double endBin = 40;    // Конец гистограммы
-    double stepBin = 0.1;  // Шаг бинов гистограммы
+    double startBin = -100; // Начало гистограммы
+    double endBin = 100;    // Конец гистограммы
+    double stepBin = 0.01;  // Шаг бинов гистограммы
 
     // Параметры для linspace
     double linspaceStartA = 3.5;  // Начало диапазона параметра
     double linspaceEndA = 5;   // Конец диапазона параметра
-    int linspaceNumA = 200;       // Количество точек параметра
+    int linspaceNumA = 2000;       // Количество точек параметра
     int paramNumberA = 1;         // Индекс параметра для анализа
 
 
     double linspaceStartB = 0;  // Начало диапазона параметра
-    double linspaceEndB = 0.25;   // Конец диапазона параметра
-    int linspaceNumB = 200;
+    double linspaceEndB = 0.35;   // Конец диапазона параметра
+    int linspaceNumB = 2000;
     int paramNumberB = 2;         // Индекс параметра для анализа
 
     auto start = std::chrono::high_resolution_clock::now();
@@ -70,7 +70,7 @@ int main(int argc, char* argv[]) {
 
     writeToCSV(histEntropy3D,linspaceNumA,linspaceNumB,inputString);
 
-    // std::vector<double> histEntropy2D = histEntropyCUDA2D(
+    //  std::vector<double> histEntropy2D = histEntropyCUDA2D(
     //                                     transTime, tMax, h,
     //                                     X, coord,
     //                                     params, paramNumberA,

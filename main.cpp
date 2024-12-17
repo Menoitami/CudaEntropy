@@ -129,9 +129,9 @@ int main() {
    void (*systemStep)(double*, const double*, const double) = calculateDiscreteModel;
 
     int coord = 0;
-    double transTime = 1000;
-    double tMax = 2000;
-    double h = 0.01;
+    double transTime = 10000;
+    double tMax = 20000;
+    double h = 0.001;
 
     double start[] = {0.1, 0.1, 0}; 
     int startSize = sizeof(start) / sizeof(start[0]); 
@@ -140,8 +140,8 @@ int main() {
     
     double params[] = {0, 0.2, 0.2, 5.7};
 
-    double startEdge = -20;
-    double endEdge = 20;
+    double startEdge = -100;
+    double endEdge = 100;
     double stepEdge = 0.1;
 
     std::vector<double> a_array = linspaceNum(0.1, 0.35, 400);

@@ -42,18 +42,7 @@ __constant__ int d_paramNumberB;
 __device__ int d_progress;
 __device__ const double EPSD = std::numeric_limits<double>::epsilon();
 
-__device__ double atomicExchDouble(double* address, double val) {
-    unsigned long long int* address_as_ull = (unsigned long long int*)address;
-    unsigned long long int old = *address_as_ull;
-    unsigned long long int assumed;
 
-    do {
-        assumed = old;
-        old = atomicCAS(address_as_ull, assumed, __double_as_longlong(val));
-    } while (assumed != old);
-
-    return __longlong_as_double(old);
-}
 __host__ std::vector<double> linspaceNum(double start, double end, int num) {
     std::vector<double> result;
 
@@ -123,12 +112,12 @@ __device__ __host__ void calculateDiscreteModel(double* x, const double* a, cons
     
     x[0] += h1 *x[1];
     x[1] += h1*x[2];
-    x[2] += h1*(x[1]-a[1]*x[2]*x[3]);
+    x[2] += h1*(x[1]*x[3] -a[1]*x[2]*x[3]);
     x[3] += h1 * (a[2]*x[0]*x[2] - x[1]*x[1] + x[2] * x[2]);
 
     x[3] += h2*(a[2]*x[0]*x[2]-x[1]*x[1] + x[2]*x[2]);
     x[2] = (x[2] + h2* x[1] * x[3])/(1+a[1]*h2*x[3]);
-    x[1] += h2*x[2];
+    x[1] += h2 * x[2];
     x[0] += h2 * x[1];
 }
 
@@ -208,24 +197,9 @@ __global__ void calculateHistEntropyCuda3D(const double* X,
                                            const double* paramLinspaceB,
                                            double* histEntropy, 
                                            double* bins_global) {
-    extern __shared__ double shared_mem[];
-
-    // Shared memory allocation
-    double* X_sh = shared_mem;
-    double* params_sh = &shared_mem[d_XSize];
-
-    // Load global memory to shared memory
-    for (int i = threadIdx.x; i < d_XSize; i += blockDim.x) {
-        X_sh[i] = X[i];
-    }
-    for (int i = threadIdx.x; i < d_paramsSize; i += blockDim.x) {
-        params_sh[i] = params[i];
-    }
-    
-    __syncthreads();
 
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
-    if (idx >= d_histEntropySize-1) return;
+    if (idx >= d_histEntropySize) return;
 
 
     int binSize = static_cast<int>(std::ceil((d_endBin - d_startBin) / d_stepBin));
@@ -243,8 +217,8 @@ __global__ void calculateHistEntropyCuda3D(const double* X,
     double X_locals[32];
     double params_local[32];
 
-    memcpy(X_locals, X_sh, d_XSize * sizeof(double));
-    memcpy(params_local, params_sh, d_paramsSize * sizeof(double));
+    memcpy(X_locals, X, d_XSize * sizeof(double));
+    memcpy(params_local, params, d_paramsSize * sizeof(double));
 
     params_local[d_paramNumberA] = paramLinspaceA[row];
     params_local[d_paramNumberB] = paramLinspaceB[col];
@@ -532,63 +506,6 @@ __host__ std::vector<std::vector<double>> histEntropyCUDA3D(
     return histEntropy2DFinal;
 }
 
-
-
-__global__ void calculateHistEntropyCuda2D(const double* const X, 
-                                           const double* const params,
-                                           const double* const paramLinspaceA,
-                                           double* histEntropy, 
-                                           double** bins_global) {
-const int x_size =3;
-const int param_size = 4;
-
-    __shared__ double X_sh[x_size];
-    __shared__ double params_sh[param_size];
-    if(threadIdx.x==0){
-        memcpy(params_sh, params, param_size * sizeof(double));
-        memcpy(X_sh, X, x_size * sizeof(double));
-    }
-    __syncthreads();
-    
-    int idx = threadIdx.x + blockIdx.x * blockDim.x;
-    
-    if (idx < d_histEntropySize) {
-
-
-        double X_locals[x_size];
-        double params_local[param_size];
-        
-        memcpy(params_local, params_sh, param_size * sizeof(double));
-        memcpy(X_locals, X_sh, x_size * sizeof(double));
-
-        params_local[d_paramNumberA] = paramLinspaceA[idx];
-
-        loopCalculateDiscreteModel(X_locals, params_local, d_h, 
-                                   static_cast<int>(d_transTime / d_h), 
-                                   0, 0, 0, nullptr, 0, 0);
-
-        int binSize = static_cast<int>(ceil((d_endBin - d_startBin) / d_stepBin));
-        int sum = 0;
-
-        CalculateHistogram(
-             X_locals, params_local, sum, bins_global[idx]);
-
-        double H = calculateEntropy(bins_global[idx], binSize, sum);
-
-        // Нормализуем и сохраняем результат в глобальную память
-        histEntropy[idx] = (H / __log2f(binSize));
-
-
-        // Вывод прогресса
-        
-        int progress = atomicAdd(&d_progress, 1);
-        if ((progress + 1) % (d_histEntropySize / 10) == 0) {
-            printf("Progress: %d%%\n", ((progress + 1) * 100) / d_histEntropySize);
-        }
-        
-
-    }
-}
 
 
 __host__ std::vector<double> histEntropyCUDA2D(
