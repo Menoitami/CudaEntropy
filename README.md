@@ -34,6 +34,7 @@ cmake --build .
 ```
 5. Запуск программы
 ```bash
+cd Debug
 ./CudaEntropy.exe <имя результирующего файла>
 ```
 или 
