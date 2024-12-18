@@ -38,7 +38,7 @@ cmake --build .
 ```
 5. Запуск программы
 ```bash
-cd Debug!
+cd Debug
 
 ./CudaEntropy.exe <имя результирующего файла>
 ```
@@ -48,4 +48,4 @@ cd Debug!
 ```
 
 ###Пример работы программы
-[ressler](https://github.com/user-attachments/assets/bfb8b5fd-7da8-4e48-ba53-9d4e71be68d0)
+![ressler](https://github.com/user-attachments/assets/bfb8b5fd-7da8-4e48-ba53-9d4e71be68d0)
