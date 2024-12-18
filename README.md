@@ -14,6 +14,10 @@
 - Компилятор с поддержкой C++ (например, GCC или MSVC).
 
 #### Сборка и запуск
+Можете попробовать скачать сборку под Visual Studio(за нее не ручаемся): [CudaEntropyVS.zip](https://github.com/user-attachments/files/18186660/CudaEntropyVS.zip)
+
+Либо используя cmake и git установить вручную.
+
 1. Сначала склонируйте репозиторий проекта с помощью Git:
 ```bash
 git clone https://github.com/Menoitami/CudaEntropy.git
